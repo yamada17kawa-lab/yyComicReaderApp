@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -74,6 +75,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean isOnlineShelfMode = false;
     private final NaturalOrderComparator naturalOrderComparator = new NaturalOrderComparator();
     private final ExecutorService scanExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService deleteExecutor = Executors.newSingleThreadExecutor();
+    private volatile boolean isBatchDeleting = false;
     private final ExecutorService lanExecutor = Executors.newCachedThreadPool();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -556,6 +559,9 @@ public class MainActivity extends AppCompatActivity {
         if (lanTransferManager != null) {
             lanTransferManager.stop();
         }
+        try {
+            deleteExecutor.shutdown();
+        } catch (Throwable ignored) {}
     }
 
     private void onLanComicReceived(String comicTitle, File comicFolder) {
@@ -759,17 +765,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void confirmRemoveComic(ComicItem item) {
+        if (item == null) return;
         new AlertDialog.Builder(this)
                 .setTitle("彻底删除漫画")
                 .setMessage("确定要彻底删除《" + item.getTitle() + "》吗？\n\n⚠️ 警告：此操作将同时：\n1. 从书架移除该漫画\n2. 清除已读进度与阅读次数记录\n3. 永久删除手机存储上的漫画物理文件夹及图片！")
                 .setPositiveButton("彻底删除", (dialog, which) -> {
-                    ShelfStorage.deleteComicPhysicalFiles(this, item);
-                    allComics.remove(item);
-                    ShelfStorage.clearComicHistory(this, item);
-                    ShelfStorage.saveShelf(this, allComics, ShelfStorage.getSavedRootPath(this));
-                    filterComics(etSearch.getText().toString());
+                    synchronized (allComics) {
+                        allComics.remove(item);
+                    }
+                    displayComics.remove(item);
+                    filterComics(etSearch != null ? etSearch.getText().toString() : "");
                     updateShelfStats();
-                    Toast.makeText(this, "🗑️ 已彻底删除《" + item.getTitle() + "》及本地物理文件", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "🗑️ 正在后台清理《" + item.getTitle() + "》物理文件...", Toast.LENGTH_SHORT).show();
+
+                    deleteExecutor.execute(() -> {
+                        try {
+                            ShelfStorage.deleteComicPhysicalFiles(MainActivity.this, item);
+                            ShelfStorage.clearComicHistory(MainActivity.this, item);
+                            ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                        } catch (Throwable t) {
+                            Log.e("MainActivity", "Error deleting comic files", t);
+                        }
+                    });
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -993,7 +1010,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void confirmBatchDelete() {
         if (adapter == null) return;
-        Set<String> selectedIds = adapter.getSelectedIds();
+        if (isBatchDeleting) {
+            Toast.makeText(this, "正在进行批量删除任务，请稍候...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Set<String> selectedIds = new HashSet<>(adapter.getSelectedIds());
         int count = selectedIds.size();
         if (count == 0) return;
 
@@ -1001,22 +1022,70 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("批量彻底删除漫画")
                 .setMessage("确定要批量彻底删除选中的 " + count + " 部漫画吗？\n\n⚠️ 警告：此操作将同时从书架移除所选漫画、清除阅读记录，并永久删除手机存储上的对应漫画物理文件夹及图片！")
                 .setPositiveButton("批量删除", (dialog, which) -> {
+                    if (isBatchDeleting) return;
+                    isBatchDeleting = true;
+
                     List<ComicItem> toDelete = new ArrayList<>();
-                    for (ComicItem c : allComics) {
-                        if (selectedIds.contains(c.getId())) {
-                            toDelete.add(c);
+                    synchronized (allComics) {
+                        for (ComicItem c : allComics) {
+                            if (c != null && selectedIds.contains(c.getId())) {
+                                toDelete.add(c);
+                            }
                         }
+                        allComics.removeAll(toDelete);
                     }
-                    for (ComicItem c : toDelete) {
-                        ShelfStorage.deleteComicPhysicalFiles(this, c);
-                    }
-                    ShelfStorage.clearComicsHistory(this, toDelete);
-                    allComics.removeAll(toDelete);
-                    ShelfStorage.saveShelf(this, allComics, ShelfStorage.getSavedRootPath(this));
+                    displayComics.removeAll(toDelete);
+
                     exitBatchMode();
-                    filterComics(etSearch.getText().toString());
+                    filterComics(etSearch != null ? etSearch.getText().toString() : "");
                     updateShelfStats();
-                    Toast.makeText(this, "🗑️ 已批量彻底删除 " + count + " 部漫画及本地物理文件", Toast.LENGTH_SHORT).show();
+
+                    int total = toDelete.size();
+                    if (total == 0) {
+                        isBatchDeleting = false;
+                        return;
+                    }
+
+                    showImportProgress("准备批量删除 (0/" + total + ")...", 0, "正在启动异步删除队列...");
+
+                    deleteExecutor.execute(() -> {
+                        int successCount = 0;
+                        for (int i = 0; i < total; i++) {
+                            ComicItem c = toDelete.get(i);
+                            int currentIdx = i + 1;
+                            int percent = (int) (((float) currentIdx / total) * 100);
+                            String title = (c != null && c.getTitle() != null && !c.getTitle().isEmpty()) ? c.getTitle() : ("第 " + currentIdx + " 部");
+
+                            updateImportProgress("正在批量删除 (" + currentIdx + "/" + total + ")", percent, "正在删除: 《" + title + "》物理文件及记录");
+
+                            try {
+                                if (c != null) {
+                                    ShelfStorage.deleteComicPhysicalFiles(MainActivity.this, c);
+                                    ShelfStorage.clearComicHistory(MainActivity.this, c);
+                                    successCount++;
+                                }
+                            } catch (Throwable t) {
+                                Log.e("MainActivity", "Error deleting comic: " + title, t);
+                            }
+                        }
+
+                        // 保存最新书架状态
+                        try {
+                            ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                        } catch (Throwable t) {
+                            Log.e("MainActivity", "Error saving shelf after batch delete", t);
+                        }
+
+                        final int finalSuccess = successCount;
+                        mainHandler.post(() -> {
+                            isBatchDeleting = false;
+                            updateImportProgress("批量删除完成", 100, "已彻底清理 " + finalSuccess + " 部漫画的物理文件及记录");
+                            hideImportProgress(2500);
+                            filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                            updateShelfStats();
+                            Toast.makeText(MainActivity.this, "🗑️ 已批量彻底删除 " + finalSuccess + " 部漫画及本地物理文件", Toast.LENGTH_SHORT).show();
+                        });
+                    });
                 })
                 .setNegativeButton("取消", null)
                 .show();

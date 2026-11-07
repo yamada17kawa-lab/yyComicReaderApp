@@ -323,7 +323,7 @@ public class ShelfStorage {
                                 anyDeleted = true;
                             }
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Throwable ignored) {}
                 }
             }
 
@@ -332,53 +332,65 @@ public class ShelfStorage {
                 if (folderPath.startsWith("content://")) {
                     try {
                         DocumentFile dirDf = DocumentFile.fromTreeUri(context, Uri.parse(folderPath));
-                        if (dirDf != null && dirDf.exists() && dirDf.isDirectory()) {
-                            boolean hasSubDir = false;
-                            DocumentFile[] children = dirDf.listFiles();
-                            if (children != null) {
-                                for (DocumentFile child : children) {
-                                    if (child.isDirectory()) {
-                                        hasSubDir = true;
-                                        break;
+                        if (dirDf != null && dirDf.exists()) {
+                            if (dirDf.isDirectory()) {
+                                boolean hasSubDir = false;
+                                DocumentFile[] children = dirDf.listFiles();
+                                if (children != null) {
+                                    for (DocumentFile child : children) {
+                                        if (child != null && child.isDirectory()) {
+                                            hasSubDir = true;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            if (!hasSubDir && dirDf.delete()) {
-                                anyDeleted = true;
-                            }
-                        }
-                    } catch (Exception ignored) {}
-                } else {
-                    File dir = new File(folderPath);
-                    if (dir.exists() && dir.isDirectory()) {
-                        String absDir = dir.getAbsolutePath();
-                        String extRoot = Environment.getExternalStorageDirectory().getAbsolutePath();
-                        String transDir = getTransferSaveDir(context);
-                        String defTransDir = getDefaultTransferSaveDir(context);
-
-                        boolean isProtected = absDir.equalsIgnoreCase(extRoot)
-                                || absDir.equalsIgnoreCase(transDir)
-                                || absDir.equalsIgnoreCase(defTransDir);
-
-                        if (!isProtected) {
-                            File[] subDirs = dir.listFiles(File::isDirectory);
-                            boolean hasSubDirs = subDirs != null && subDirs.length > 0;
-                            if (!hasSubDirs) {
-                                File[] remainingFiles = dir.listFiles(File::isFile);
-                                if (remainingFiles != null) {
-                                    for (File rf : remainingFiles) {
-                                        try { rf.delete(); } catch (Exception ignored) {}
-                                    }
-                                }
-                                if (dir.delete()) {
+                                if (!hasSubDir && dirDf.delete()) {
                                     anyDeleted = true;
                                 }
+                            } else if (dirDf.isFile()) {
+                                if (dirDf.delete()) {
+                                    anyDeleted = true;
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                } else {
+                    File dir = new File(folderPath);
+                    if (dir.exists()) {
+                        if (dir.isDirectory()) {
+                            String absDir = dir.getAbsolutePath();
+                            String extRoot = Environment.getExternalStorageDirectory().getAbsolutePath();
+                            String transDir = getTransferSaveDir(context);
+                            String defTransDir = getDefaultTransferSaveDir(context);
+
+                            boolean isProtected = absDir.equalsIgnoreCase(extRoot)
+                                    || absDir.equalsIgnoreCase(transDir)
+                                    || absDir.equalsIgnoreCase(defTransDir);
+
+                            if (!isProtected) {
+                                File[] subDirs = dir.listFiles(File::isDirectory);
+                                boolean hasSubDirs = subDirs != null && subDirs.length > 0;
+                                if (!hasSubDirs) {
+                                    File[] remainingFiles = dir.listFiles(File::isFile);
+                                    if (remainingFiles != null) {
+                                        for (File rf : remainingFiles) {
+                                            try { rf.delete(); } catch (Throwable ignored) {}
+                                        }
+                                    }
+                                    if (dir.delete()) {
+                                        anyDeleted = true;
+                                    }
+                                }
+                            }
+                        } else if (dir.isFile()) {
+                            if (dir.delete()) {
+                                anyDeleted = true;
                             }
                         }
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
         return anyDeleted;
