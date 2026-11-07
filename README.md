@@ -1,6 +1,10 @@
 # 📱 YY漫画阅读器 安卓版 (yyComicReader Android)
 
 <p align="center">
+  <img src="Assets/app-icon.png" alt="yyComicReader Android Logo" width="140" height="140" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);" />
+</p>
+
+<p align="center">
   <b>基于 Google Material Design 3 (M3) 规范打造的高性能本地极速漫画阅读器 & 局域网互通终端</b><br>
   <sub>基于 Java 17 + Android SDK 34 构建，支持 Studio 级深色沉浸美学、毫秒级瀑布流垂直长卷阅读、局域网免下载零占用在线书架、异步队列批量安全删除与电脑端数据实时联动。</sub>
 </p>
