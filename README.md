@@ -48,23 +48,23 @@ flowchart LR
         direction TB
         AppUI["Material 3 极速暗黑书架"]
         OnlineShelf["🖥️ 在线书架 (0 存储占用)"]
-        BatchQueue["异步队列批量删除"]
-        TransferClient["双向免流互传客户端"]
         AppRead["沉浸式阅读器"]
+        TransferClient["双向免流互传客户端"]
     end
 
     subgraph PC ["💻 Windows 桌面端 (yyComicReaderDesktop)"]
         direction TB
+        UdpRadar["UDP 广播雷达 (自动发现设备)"]
         DesktopStorage["本地大容量磁盘存储 (数百GB漫画)"]
         HttpServer["内嵌流式 HTTP 服务端 (:19890)"]
-        UdpRadar["UDP 广播雷达 (自动发现设备)"]
         ReadSync["阅读次数与历史记录数据库"]
     end
 
-    Phone <==>|"1. 局域网毫秒级自动握手"| UdpRadar
-    OnlineShelf <--|"2. 封面与图片流式点播"| HttpServer <-- DesktopStorage
-    AppRead -->|"3. 在线阅读计数实时回传 (/api/record-read)"| ReadSync
-    TransferClient <==>|"4. 高速物理文件双向互传 (智能去重)"| PC
+    AppUI <-->|"1. 局域网毫秒级自动握手"| UdpRadar
+    DesktopStorage --> HttpServer
+    HttpServer -->|"2. 封面与图片流式点播"| OnlineShelf
+    AppRead -->|"3. 在线阅读计数实时回传"| ReadSync
+    TransferClient <-->|"4. 高速物理文件双向互传"| HttpServer
 ```
 
 ---
