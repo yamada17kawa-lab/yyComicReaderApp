@@ -142,23 +142,25 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
             holder.tvProgress.setVisibility(View.GONE);
         }
 
-        // 显示累计阅读次数 (本地书架与在线书架均实时同步并展示阅读次数)
-        int readCount = item.getReadCount();
-        if (sp != null) {
-            int spById = sp.getInt("read_count_" + item.getId(), 0);
-            int spByTitle = sp.getInt("read_count_" + item.getTitle(), 0);
-            readCount = Math.max(readCount, Math.max(spById, spByTitle));
-            if (readCount != item.getReadCount()) {
-                item.setReadCount(readCount);
+        // 显示累计阅读次数：本地书架只显示本地阅读次数，在线书架只显示电脑端的阅读次数
+        int readCount;
+        if (isOnlineShelfMode) {
+            // 在线书架模式：纯粹展示来自电脑端的阅读次数，绝不读取或混入手机本地记录
+            readCount = Math.max(0, item.getReadCount());
+        } else {
+            // 本地书架模式：纯粹展示手机本地的阅读次数
+            readCount = item.getReadCount();
+            if (sp != null) {
+                int spById = sp.getInt("read_count_" + item.getId(), 0);
+                int spByTitle = sp.getInt("read_count_" + item.getTitle(), 0);
+                readCount = Math.max(readCount, Math.max(spById, spByTitle));
+                if (readCount != item.getReadCount()) {
+                    item.setReadCount(readCount);
+                }
             }
         }
-        if (isOnlineShelfMode || readCount > 0) {
-            holder.tvReadCount.setVisibility(View.VISIBLE);
-            holder.tvReadCount.setText("已读 " + readCount + " 次");
-        } else {
-            holder.tvReadCount.setVisibility(View.VISIBLE);
-            holder.tvReadCount.setText("已读 0 次");
-        }
+        holder.tvReadCount.setVisibility(View.VISIBLE);
+        holder.tvReadCount.setText("已读 " + readCount + " 次");
 
         int defaultCardBg = ContextCompat.getColor(context, R.color.bg_card);
         int selectedBg = ContextCompat.getColor(context, R.color.bg_card_selected);

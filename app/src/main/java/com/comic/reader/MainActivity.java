@@ -1702,10 +1702,8 @@ public class MainActivity extends AppCompatActivity {
                     boolean localOwned = localTitleKeys.contains(LanTransferManager.normalizeTitleKey(rc.title));
                     if (onlyMissingFilter[0] && localOwned) continue;
                     if (!kw.isEmpty() && (rc.title == null || !rc.title.toLowerCase().contains(kw))) continue;
-                    int localSpRead = sp != null
-                            ? Math.max(sp.getInt("read_count_" + rc.title, 0), sp.getInt("read_count_" + rc.id, 0))
-                            : 0;
-                    int effectiveReadCount = Math.max(rc.readCount, localSpRead);
+                    // 对方电脑上的漫画：严格展示电脑端的真实阅读次数 rc.readCount，绝不与本地记录混合
+                    int effectiveReadCount = Math.max(0, rc.readCount);
                     entries.add(new LanComicSelectAdapter.Entry(
                             rc.id,
                             rc.title,
