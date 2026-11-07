@@ -38,6 +38,7 @@ public class ReaderActivity extends AppCompatActivity {
     private LinearLayoutManager layoutManager;
     private boolean isControlsShowing = true;
     private SharedPreferences sp;
+    private int lastReportedOnlinePage = -1;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -104,7 +105,8 @@ public class ReaderActivity extends AppCompatActivity {
 
                     // 记录已读进度
                     sp.edit().putInt("progress_" + currentComic.getTitle(), currentPage).apply();
-                    if (isOnlineMode && currentComic != null) {
+                    if (isOnlineMode && currentComic != null && lastReportedOnlinePage != currentPage) {
+                        lastReportedOnlinePage = currentPage;
                         notifyRemoteRecordRead(currentComic.getFolderPath(), currentComic.getId(), currentPage, false);
                     }
                 }
@@ -266,14 +268,17 @@ public class ReaderActivity extends AppCompatActivity {
         if (baseUrl == null || !baseUrl.startsWith("http") || comicId == null || comicId.trim().isEmpty()) return;
         new Thread(() -> {
             try {
+                String cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
                 String encodedId = java.net.URLEncoder.encode(comicId, "UTF-8");
-                String urlStr = baseUrl + "/api/record-read?id=" + encodedId + "&page=" + page;
+                String titleParam = (currentComic != null && currentComic.getTitle() != null)
+                        ? ("&title=" + java.net.URLEncoder.encode(currentComic.getTitle(), "UTF-8"))
+                        : "";
+                String incParam = incrementViews ? "&inc=1" : "&inc=0";
+                String urlStr = cleanBaseUrl + "/api/record-read?id=" + encodedId + titleParam + "&page=" + page + incParam;
                 java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(urlStr).openConnection();
-                conn.setRequestMethod("POST");
+                conn.setRequestMethod("GET");
                 conn.setConnectTimeout(4000);
                 conn.setReadTimeout(4000);
-                conn.setDoOutput(true);
-                conn.getOutputStream().write(new byte[0]);
                 if (conn.getResponseCode() == 200) {
                     java.io.InputStream in = conn.getInputStream();
                     java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
@@ -288,6 +293,7 @@ public class ReaderActivity extends AppCompatActivity {
                         runOnUiThread(() -> currentComic.setReadCount(remoteCount));
                     }
                 }
+                conn.disconnect();
             } catch (Exception ignored) {}
         }).start();
     }
