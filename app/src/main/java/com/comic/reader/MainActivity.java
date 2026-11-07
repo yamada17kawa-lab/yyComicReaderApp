@@ -198,6 +198,34 @@ public class MainActivity extends AppCompatActivity {
         });
         recyclerView.setAdapter(adapter);
 
+        // 书架一键回到顶部按钮逻辑
+        View fabShelfScrollTop = findViewById(R.id.fab_shelf_scroll_top);
+        com.google.android.material.appbar.AppBarLayout appBarLayout = findViewById(R.id.app_bar_layout);
+        if (fabShelfScrollTop != null) {
+            fabShelfScrollTop.setOnClickListener(v -> {
+                recyclerView.scrollToPosition(0);
+                if (appBarLayout != null) {
+                    appBarLayout.setExpanded(true, true);
+                }
+                fabShelfScrollTop.setVisibility(View.GONE);
+            });
+        }
+        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView rv, int dx, int dy) {
+                super.onScrolled(rv, dx, dy);
+                if (fabShelfScrollTop != null) {
+                    RecyclerView.LayoutManager lm = rv.getLayoutManager();
+                    if (lm instanceof GridLayoutManager) {
+                        int first = ((GridLayoutManager) lm).findFirstVisibleItemPosition();
+                        fabShelfScrollTop.setVisibility(first > 3 ? View.VISIBLE : View.GONE);
+                    } else {
+                        fabShelfScrollTop.setVisibility(rv.canScrollVertically(-1) ? View.VISIBLE : View.GONE);
+                    }
+                }
+            }
+        });
+
         View btnToggleOnlineShelf = findViewById(R.id.btn_toggle_online_shelf);
         if (btnToggleOnlineShelf != null) {
             btnToggleOnlineShelf.setOnClickListener(v -> {

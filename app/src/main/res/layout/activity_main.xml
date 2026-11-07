@@ -8,6 +8,7 @@
 
     <!-- 顶部 Studio 级应用栏与统一检索控制中枢 -->
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/bg_surface"
@@ -607,6 +608,29 @@
             android:visibility="gone" />
 
     </FrameLayout>
+
+    <!-- 右下角快捷回到顶部按钮 (书架向下滚动后自动浮现) -->
+    <LinearLayout
+        android:id="@+id/fab_shelf_scroll_top"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="82dp"
+        android:gravity="center"
+        android:background="@drawable/fab_shelf_scroll_top_bg"
+        android:elevation="6dp"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_top_arrow_vector"
+            app:tint="@color/primary_light"
+            android:contentDescription="回到顶部" />
+    </LinearLayout>
 
     <!-- 右下角悬浮导入目录按钮 -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
