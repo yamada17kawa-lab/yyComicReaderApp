@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="46dp"
+    android:layout_marginBottom="4dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:background="@drawable/btn_pill_surface">
+
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_folder_vector"
+        app:tint="@color/primary_light" />
+
+    <TextView
+        android:id="@+id/tv_folder_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:textColor="@color/text_white"
+        android:textSize="13.5sp"
+        android:textStyle="bold"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:src="@drawable/ic_chevron_right_vector"
+        app:tint="@color/text_muted" />
+
+</LinearLayout>

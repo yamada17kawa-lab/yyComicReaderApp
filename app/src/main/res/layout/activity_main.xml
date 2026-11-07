@@ -1,0 +1,630 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+
+    <!-- 顶部 Studio 级应用栏与统一检索控制中枢 -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_surface"
+        app:elevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp">
+
+            <!-- 常态第一行：品牌标识 + 馆藏统计胶囊 + 核心快捷操作 (互传 / 刷新 / 设置) -->
+            <LinearLayout
+                android:id="@+id/layout_normal_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 品牌视觉徽标 -->
+                <FrameLayout
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="@drawable/btn_pill_primary">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_book_open_vector"
+                        app:tint="@color/text_white" />
+                </FrameLayout>
+
+                <!-- 标题与副标题统计 -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="8dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tv_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="YY 漫阅"
+                        android:textColor="@color/text_white"
+                        android:textSize="19sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.02"
+                        android:singleLine="true" />
+
+                    <TextView
+                        android:id="@+id/tv_shelf_stats"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/btn_pill_surface"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="0 部漫画"
+                        android:textColor="@color/primary_light"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:singleLine="true" />
+                </LinearLayout>
+
+                <!-- Wi-Fi 局域网互传胶囊按钮 -->
+                <LinearLayout
+                    android:id="@+id/btn_lan_transfer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:background="@drawable/btn_pill_surface"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:id="@+id/iv_lan_transfer_icon"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_wifi_vector"
+                        app:tint="@color/primary_light" />
+
+                    <TextView
+                        android:id="@+id/tv_lan_transfer_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="5dp"
+                        android:text="互传"
+                        android:textColor="@color/text_white"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        android:singleLine="true" />
+                </LinearLayout>
+
+                <!-- 刷新书架按钮 -->
+                <ImageView
+                    android:id="@+id/btn_refresh"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    android:src="@drawable/ic_refresh_vector"
+                    android:padding="8dp"
+                    app:tint="@color/text_secondary"
+                    android:background="@drawable/btn_pill_surface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:contentDescription="刷新书架" />
+
+                <!-- 设置按钮 -->
+                <ImageView
+                    android:id="@+id/btn_settings"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_settings_vector"
+                    android:padding="8dp"
+                    app:tint="@color/text_secondary"
+                    android:background="@drawable/btn_pill_surface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:contentDescription="设置与管理" />
+
+            </LinearLayout>
+
+            <!-- 批量选择顶栏 (进入多选模式时替换常态顶栏) -->
+            <LinearLayout
+                android:id="@+id/layout_batch_bar"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/btn_pill_surface"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:visibility="gone">
+
+                <CheckBox
+                    android:id="@+id/cb_batch_select_all"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="全选"
+                    android:textColor="@color/text_white"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:buttonTint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/tv_batch_count"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:text="已选 0 项"
+                    android:textColor="@color/primary_light"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:singleLine="true" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_batch_delete"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:layout_marginEnd="6dp"
+                    android:text="彻底删除"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:backgroundTint="@color/danger_red"
+                    android:textColor="@color/text_white"
+                    app:cornerRadius="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_batch_cancel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="退出"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:backgroundTint="#2E3348"
+                    android:textColor="@color/text_secondary"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+
+            <!-- 第二行：一体化搜索胶囊 + 排序与批量操作按钮 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 搜索胶囊框 -->
+                <RelativeLayout
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/search_bg">
+
+                    <ImageView
+                        android:id="@+id/iv_search"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_alignParentStart="true"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="12dp"
+                        android:src="@drawable/ic_search_vector"
+                        app:tint="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/et_search"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_toEndOf="@id/iv_search"
+                        android:layout_toStartOf="@+id/iv_clear_search"
+                        android:background="@null"
+                        android:hint="@string/search_hint"
+                        android:textColor="@color/text_white"
+                        android:textColorHint="@color/text_subtle"
+                        android:textSize="13.5sp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:singleLine="true"
+                        android:imeOptions="actionSearch" />
+
+                    <ImageView
+                        android:id="@+id/iv_clear_search"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:layout_marginEnd="6dp"
+                        android:padding="6dp"
+                        android:src="@drawable/ic_close_vector"
+                        app:tint="@color/text_muted"
+                        android:visibility="gone"
+                        android:background="?attr/selectableItemBackgroundBorderless" />
+                </RelativeLayout>
+
+                <!-- 排序胶囊按钮 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_sort"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="排序"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:backgroundTint="@color/bg_container"
+                    android:textColor="@color/text_white"
+                    app:icon="@drawable/ic_sort_vector"
+                    app:iconSize="16dp"
+                    app:iconPadding="5dp"
+                    app:iconTint="@color/primary_light"
+                    app:strokeColor="@color/border_color"
+                    app:strokeWidth="1dp"
+                    app:cornerRadius="12dp" />
+
+                <!-- 多选胶囊按钮 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_batch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="多选"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:backgroundTint="@color/bg_container"
+                    android:textColor="@color/text_white"
+                    app:icon="@drawable/ic_batch_vector"
+                    app:iconSize="16dp"
+                    app:iconPadding="5dp"
+                    app:iconTint="@color/text_secondary"
+                    app:strokeColor="@color/border_color"
+                    app:strokeWidth="1dp"
+                    app:cornerRadius="12dp" />
+
+            </LinearLayout>
+
+            <!-- 权限引导横幅 (未授予全盘访问权限时显示) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/layout_permission_banner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="#261E19"
+                app:strokeColor="#66F59E0B"
+                app:strokeWidth="1dp"
+                app:cardElevation="0dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="11dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="点击此处授予「所有文件访问权限」，即可极速读取手机内任意漫画目录"
+                        android:textColor="#FDE68A"
+                        android:textSize="12sp"
+                        android:lineSpacingExtra="2dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/read_count_badge_bg"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:text="去授权 ›"
+                        android:textColor="@color/text_white"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 局域网连接与电脑端在线书架切换横幅 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/layout_online_shelf_banner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="#1B2432"
+                app:strokeColor="#3B82F6"
+                app:strokeWidth="1dp"
+                app:cardElevation="0dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="9dp"
+                    android:paddingBottom="9dp">
+
+                    <TextView
+                        android:id="@+id/tv_online_shelf_banner_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🟢 已连电脑 · 可免下载在线看漫画"
+                        android:textColor="#E0F2FE"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_toggle_online_shelf"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:layout_marginStart="8dp"
+                        android:text="💻 在线看电脑书架"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#2563EB"
+                        android:textColor="@color/text_white"
+                        app:cornerRadius="8dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 扫描导入实时进度面板 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/layout_import_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="@color/bg_container"
+                app:strokeColor="@color/primary"
+                app:strokeWidth="1dp"
+                app:cardElevation="0dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/tv_import_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentStart="true"
+                            android:layout_toStartOf="@+id/tv_import_percent"
+                            android:text="正在扫描漫画目录..."
+                            android:textColor="@color/text_white"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tv_import_percent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentEnd="true"
+                            android:text="0%"
+                            android:textColor="@color/primary_light"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold" />
+                    </RelativeLayout>
+
+                    <ProgressBar
+                        android:id="@+id/import_progress_bar"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:layout_marginTop="6dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressTint="@color/primary"
+                        android:progressBackgroundTint="#26FFFFFF" />
+
+                    <TextView
+                        android:id="@+id/tv_import_detail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="准备扫描..."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:singleLine="true"
+                        android:ellipsize="middle" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+        <!-- 顶栏底部微光分割线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/border_color" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- 主体书架网格与空状态区 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <!-- 漫画海报网格 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_shelf"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="96dp"
+            android:clipToPadding="false" />
+
+        <!-- 艺术化空状态卡片 -->
+        <LinearLayout
+            android:id="@+id/layout_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="24dp"
+                app:cardBackgroundColor="@color/bg_surface"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="28dp">
+
+                    <FrameLayout
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:background="@drawable/btn_pill_surface">
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_book_open_vector"
+                            app:tint="@color/primary_light" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="书架暂无漫画藏书"
+                        android:textColor="@color/text_white"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_empty_tip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:text="@string/empty_tip"
+                        android:textColor="@color/text_muted"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="4dp" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+        <!-- 全局加载旋转指示器 -->
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/primary"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- 右下角悬浮导入目录按钮 -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/btn_import"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="22dp"
+        android:text="导入目录"
+        android:textColor="@color/text_white"
+        android:textSize="13.5sp"
+        android:textStyle="bold"
+        app:icon="@drawable/ic_folder_vector"
+        app:iconTint="@color/text_white"
+        app:iconSize="18dp"
+        app:backgroundTint="@color/primary"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.MaterialComponents.MediumComponent"
+        app:elevation="8dp" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

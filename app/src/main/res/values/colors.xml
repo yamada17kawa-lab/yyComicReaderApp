@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Material Design 3 (M3) 层级深色表面体系 -->
+    <color name="bg_dark">#121318</color>
+    <color name="bg_surface">#1A1D26</color>
+    <color name="bg_card">#1A1D26</color>
+    <color name="bg_container">#222634</color>
+    <color name="bg_card_selected">#262B44</color>
+    <color name="card_stroke">#2A2F42</color>
+    <color name="border_color">#2A2F42</color>
+
+    <!-- 品牌主色与渐变辅助 (Editorial Indigo & Violet) -->
+    <color name="primary">#6366F1</color>
+    <color name="primary_variant">#4F46E5</color>
+    <color name="primary_light">#818CF8</color>
+    <color name="primary_container">#25284A</color>
+    <color name="primary_gradient_end">#8B5CF6</color>
+
+    <!-- 层次文字色阶 -->
+    <color name="text_white">#F8FAFC</color>
+    <color name="text_secondary">#CBD5E1</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="text_subtle">#64748B</color>
+
+    <!-- 状态与徽章色彩 -->
+    <color name="amber_badge">#F59E0B</color>
+    <color name="amber_badge_bg">#D9B45309</color>
+    <color name="cyan_accent">#38BDF8</color>
+    <color name="emerald_accent">#10B981</color>
+    <color name="remove_btn_bg">#D9121318</color>
+    <color name="black_overlay">#CC000000</color>
+    <color name="danger_red">#EF4444</color>
+    <color name="danger_container">#3B1822</color>
+    <color name="badge_glass_bg">#D9121318</color>
+</resources>

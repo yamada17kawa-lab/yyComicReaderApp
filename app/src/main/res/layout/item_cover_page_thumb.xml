@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_cover_thumb"
+    android:layout_width="match_parent"
+    android:layout_height="136dp"
+    android:layout_margin="4dp"
+    app:cardCornerRadius="10dp"
+    app:cardBackgroundColor="#181B26"
+    app:strokeColor="@color/border_color"
+    app:strokeWidth="1dp"
+    app:cardElevation="2dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- 内页画面缩略图 -->
+        <ImageView
+            android:id="@+id/iv_page_thumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+        <!-- 底部渐变暗角 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/card_cover_scrim" />
+
+        <!-- 左上角：当前封面标识 -->
+        <TextView
+            android:id="@+id/tv_current_cover_tag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="6dp"
+            android:background="@drawable/progress_badge_bg"
+            android:text="当前封面"
+            android:textColor="@color/text_white"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <!-- 右下角：页码胶囊 -->
+        <TextView
+            android:id="@+id/tv_page_num_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="6dp"
+            android:background="@drawable/badge_bg"
+            android:text="第 1 页"
+            android:textColor="@color/text_white"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+    </FrameLayout>
+
+</com.google.android.material.card.MaterialCardView>

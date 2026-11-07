@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">yy漫画阅读器</string>
+    <string name="import_folder">导入漫画文件夹</string>
+    <string name="search_hint">搜索漫画...</string>
+    <string name="empty_tip">点击上方按钮或此处导入漫画目录 (如 /sdcard/Download 或包含漫画子文件夹的目录)</string>
+    <string name="pages_suffix">%d P</string>
+    <string name="prev_comic">上一部</string>
+    <string name="next_comic">下一部</string>
+</resources>

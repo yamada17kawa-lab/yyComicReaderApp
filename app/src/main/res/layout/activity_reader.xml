@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- 垂直无缝瀑布流画布 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_reader"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="true" />
+
+    <!-- 右下角快捷回到顶部悬浮胶囊按钮 (向下滚动后自动浮现) -->
+    <LinearLayout
+        android:id="@+id/fab_scroll_top"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="132dp"
+        android:gravity="center"
+        android:background="@drawable/glass_capsule_bg"
+        android:elevation="8dp"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_top_arrow_vector"
+            app:tint="@color/primary_light" />
+    </LinearLayout>
+
+    <!-- 顶部悬浮 HUD 控制栏 -->
+    <LinearLayout
+        android:id="@+id/layout_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_gravity="top"
+        android:background="#E614161F"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="14dp"
+        android:elevation="8dp">
+
+        <!-- 返回书架按钮 -->
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_arrow_back_vector"
+            android:padding="9dp"
+            app:tint="@color/text_white"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="返回" />
+
+        <!-- 当前阅读漫画标题 -->
+        <TextView
+            android:id="@+id/tv_reader_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="10dp"
+            android:textColor="@color/text_white"
+            android:textSize="15.5sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <!-- 设为封面胶囊按钮 (矢量图标 + 文字) -->
+        <LinearLayout
+            android:id="@+id/btn_set_cover"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="11dp"
+            android:paddingEnd="11dp"
+            android:background="@drawable/btn_pill_surface"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_image_cover_vector"
+                app:tint="@color/primary_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="设封面"
+                android:textColor="@color/text_white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 回到顶部胶囊按钮 -->
+        <LinearLayout
+            android:id="@+id/btn_top_scroll_top"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="11dp"
+            android:paddingEnd="11dp"
+            android:background="@drawable/btn_pill_surface"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_top_arrow_vector"
+                app:tint="@color/primary_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="顶部"
+                android:textColor="@color/text_white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 底部悬浮卡片式进度与章节切换 HUD -->
+    <LinearLayout
+        android:id="@+id/layout_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#EB14161F"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="18dp"
+        android:elevation="10dp">
+
+        <!-- 顶部细分割线 -->
+        <View
+            android:layout_width="40dp"
+            android:layout_height="3dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="10dp"
+            android:background="#33FFFFFF" />
+
+        <!-- 页码胶囊与进度滑块同行展示 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_page_indicator"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:background="@drawable/btn_pill_surface"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="1 / 1"
+                android:textColor="@color/text_white"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/seek_page"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:progressTint="@color/primary"
+                android:progressBackgroundTint="#33FFFFFF"
+                android:thumbTint="@color/primary_light" />
+
+        </LinearLayout>
+
+        <!-- 底部三栏快捷导航胶囊 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/btn_prev_comic"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="‹ 上一部"
+                android:textColor="@color/text_white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:background="@drawable/btn_pill_surface"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <LinearLayout
+                android:id="@+id/btn_scroll_top"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:background="@drawable/btn_pill_surface"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="15dp"
+                    android:layout_height="15dp"
+                    android:src="@drawable/ic_top_arrow_vector"
+                    app:tint="@color/primary_light" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:text="回到顶部"
+                    android:textColor="@color/primary_light"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/btn_next_comic"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="下一部 ›"
+                android:textColor="@color/text_white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:background="@drawable/btn_pill_primary"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

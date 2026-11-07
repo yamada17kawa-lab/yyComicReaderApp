@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="14dp"
+    app:cardCornerRadius="22dp"
+    app:cardBackgroundColor="@color/bg_surface"
+    app:strokeColor="@color/border_color"
+    app:strokeWidth="1dp"
+    app:cardElevation="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <FrameLayout
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@drawable/btn_pill_surface">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_folder_vector"
+                    app:tint="@color/primary_light" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="选择漫画所在目录"
+                    android:textColor="@color/text_white"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="点击文件夹进入下一级，确认后点击底部导入按钮"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11.5sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 快捷目录胶囊栏 -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/chip_root"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:gravity="center"
+                    android:text="内部存储根目录"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/btn_pill_surface" />
+
+                <TextView
+                    android:id="@+id/chip_download"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:gravity="center"
+                    android:text="Download 下载目录"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/btn_pill_surface" />
+
+                <TextView
+                    android:id="@+id/chip_pictures"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:gravity="center"
+                    android:text="Pictures 相册目录"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:background="@drawable/btn_pill_surface" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- 当前路径指示与返回上一级栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/search_bg"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:id="@+id/tv_current_path"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="/storage/emulated/0"
+                android:textColor="@color/primary_light"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="start" />
+
+            <LinearLayout
+                android:id="@+id/btn_up_level"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:layout_marginStart="8dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/btn_pill_surface"
+                android:backgroundTint="#2E3348"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="13dp"
+                    android:layout_height="13dp"
+                    android:src="@drawable/ic_top_arrow_vector"
+                    app:tint="@color/text_white" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="上一级"
+                    android:textColor="@color/text_white"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 目录列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_folders"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:background="@drawable/search_bg"
+            android:backgroundTint="#14161F"
+            android:padding="6dp"
+            android:clipToPadding="false"
+            android:scrollbars="vertical" />
+
+        <!-- 底部操作按钮行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="14dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="取消"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:textColor="@color/text_secondary"
+                android:backgroundTint="@color/bg_container"
+                app:cornerRadius="10dp"
+                android:layout_marginEnd="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_select_this"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="导入此目录"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:backgroundTint="@color/primary"
+                android:textColor="@color/text_white"
+                app:cornerRadius="10dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

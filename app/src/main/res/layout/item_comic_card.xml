@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_view_comic"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="@color/bg_card"
+    app:strokeColor="@color/card_stroke"
+    app:strokeWidth="1dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 封面海报容器 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="232dp"
+            android:background="#0E1017">
+
+            <!-- 漫画封面图 -->
+            <ImageView
+                android:id="@+id/iv_cover"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop" />
+
+            <!-- 顶部柔和暗角遮罩 (确保顶部悬浮按钮在亮色封面上依然清晰) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_gravity="top"
+                android:background="@drawable/card_top_scrim" />
+
+            <!-- 底部深色渐变遮罩 (确保底部徽章清晰可读) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="88dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/card_cover_scrim" />
+
+            <!-- 左上角：批量模式复选框 -->
+            <CheckBox
+                android:id="@+id/cb_card_select"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="top|start"
+                android:layout_margin="8dp"
+                android:buttonTint="@color/primary"
+                android:background="@drawable/remove_btn_bg"
+                android:clickable="false"
+                android:focusable="false"
+                android:visibility="gone" />
+
+            <!-- 左上角：阅读进度胶囊 -->
+            <TextView
+                android:id="@+id/tv_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="10dp"
+                android:background="@drawable/progress_badge_bg"
+                android:textColor="@color/text_white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- 右上角：修改文件名按钮 (矢量图标) -->
+            <ImageView
+                android:id="@+id/btn_rename"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="80dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_edit_vector"
+                app:tint="#E2E8F0"
+                android:background="@drawable/remove_btn_bg"
+                android:contentDescription="修改漫画文件名" />
+
+            <!-- 右上角：自定义封面按钮 (矢量图标，无Emoji) -->
+            <ImageView
+                android:id="@+id/btn_cover"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="44dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_image_cover_vector"
+                app:tint="#E2E8F0"
+                android:background="@drawable/remove_btn_bg"
+                android:contentDescription="设置封面" />
+
+            <!-- 右上角：删除漫画按钮 (矢量图标) -->
+            <ImageView
+                android:id="@+id/btn_remove"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:padding="7dp"
+                android:src="@drawable/ic_close_vector"
+                app:tint="#FCA5A5"
+                android:background="@drawable/remove_btn_bg"
+                android:contentDescription="删除漫画" />
+
+            <!-- 左下角：阅读次数徽章 -->
+            <TextView
+                android:id="@+id/tv_read_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:layout_margin="10dp"
+                android:background="@drawable/read_count_badge_bg"
+                android:textColor="@color/text_white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- 右下角：总页数胶囊 -->
+            <TextView
+                android:id="@+id/tv_page_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="10dp"
+                android:background="@drawable/badge_bg"
+                android:textColor="#E2E8F0"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+
+        </FrameLayout>
+
+        <!-- 底部标题栏：固定2行高度使同行卡片底部严格对齐 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/bg_card"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="11dp">
+
+            <TextView
+                android:id="@+id/tv_comic_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minLines="2"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="@color/text_white"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                android:lineSpacingExtra="2dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
