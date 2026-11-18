@@ -1,5 +1,6 @@
 package com.comic.reader;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
@@ -9,6 +10,7 @@ import android.widget.CheckBox;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -83,6 +85,20 @@ public class LanComicSelectAdapter extends RecyclerView.Adapter<LanComicSelectAd
         return new HashSet<>(selectedIds);
     }
 
+    public boolean isAllSelected() {
+        if (items.isEmpty()) return false;
+        for (Entry e : items) {
+            if (!selectedIds.contains(e.id)) return false;
+        }
+        return true;
+    }
+
+    public void clearSelection() {
+        selectedIds.clear();
+        notifyDataSetChanged();
+        if (listener != null) listener.onSelectionChanged(0);
+    }
+
     public void toggleSelectAll() {
         boolean allSelected = !items.isEmpty();
         for (Entry e : items) {
@@ -137,15 +153,16 @@ public class LanComicSelectAdapter extends RecyclerView.Adapter<LanComicSelectAd
             holder.btnOnlineRead.setOnClickListener(null);
         }
 
+        Context ctx = holder.itemView.getContext();
         float density = holder.itemView.getResources().getDisplayMetrics().density;
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(12 * density);
         if (checked) {
-            bg.setColor(Color.parseColor("#2E6366F1"));
-            bg.setStroke(Math.max(1, Math.round(1.2f * density)), Color.parseColor("#818CF8"));
+            bg.setColor(ContextCompat.getColor(ctx, R.color.bg_card_selected));
+            bg.setStroke(Math.max(1, Math.round(1.5f * density)), ContextCompat.getColor(ctx, R.color.primary));
         } else {
-            bg.setColor(Color.parseColor("#1D202C"));
-            bg.setStroke(Math.max(1, Math.round(density)), Color.parseColor("#2A2F42"));
+            bg.setColor(ContextCompat.getColor(ctx, R.color.bg_surface));
+            bg.setStroke(Math.max(1, Math.round(density)), ContextCompat.getColor(ctx, R.color.border_color));
         }
         holder.itemView.setBackground(bg);
 

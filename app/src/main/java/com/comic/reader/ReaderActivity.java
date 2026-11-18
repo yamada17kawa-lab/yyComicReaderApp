@@ -41,7 +41,13 @@ public class ReaderActivity extends AppCompatActivity {
     private int lastReportedOnlinePage = -1;
 
     @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppThemeAndLocaleHelper.attachBaseContext(newBase));
+    }
+
+    @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        AppThemeAndLocaleHelper.applyAppTheme(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reader);
 
@@ -67,11 +73,7 @@ public class ReaderActivity extends AppCompatActivity {
         btnPrevComic.setOnClickListener(v -> switchComic(comicIndex - 1));
         btnNextComic.setOnClickListener(v -> switchComic(comicIndex + 1));
         if (btnSetCover != null) {
-            if (isOnlineMode) {
-                btnSetCover.setVisibility(View.GONE);
-            } else {
-                btnSetCover.setOnClickListener(v -> setCurrentPageAsCover());
-            }
+            btnSetCover.setOnClickListener(v -> setCurrentPageAsCover());
         }
 
         View.OnClickListener scrollToTopListener = v -> scrollToTop();
@@ -105,6 +107,7 @@ public class ReaderActivity extends AppCompatActivity {
 
                     // 记录已读进度
                     sp.edit().putInt("progress_" + currentComic.getTitle(), currentPage).apply();
+                    currentComic.setLastReadPage(currentPage);
                     if (isOnlineMode && currentComic != null && lastReportedOnlinePage != currentPage) {
                         lastReportedOnlinePage = currentPage;
                         notifyRemoteRecordRead(currentComic.getFolderPath(), currentComic.getId(), currentPage, false);
@@ -151,6 +154,19 @@ public class ReaderActivity extends AppCompatActivity {
         comicIndex = index;
         tvTitle.setText(isOnlineMode ? ("☁️ " + currentComic.getTitle()) : currentComic.getTitle());
 
+        // 恢复历史已读进度（在线漫画优先读取 Windows 电脑端最新同步的阅读进度）
+        int savedPage = 1;
+        if (isOnlineMode) {
+            int remotePage = currentComic.getLastReadPage();
+            int localPage = sp.getInt("progress_" + currentComic.getTitle(), 1);
+            savedPage = remotePage > 0 ? remotePage : localPage;
+            sp.edit().putInt("progress_" + currentComic.getTitle(), savedPage).apply();
+            currentComic.setLastReadPage(savedPage);
+            lastReportedOnlinePage = savedPage;
+        } else {
+            savedPage = sp.getInt("progress_" + currentComic.getTitle(), 1);
+        }
+
         if (isOnlineMode) {
             // 在线漫画模式：本地内存先递增预显示，同时异步上报电脑端更新电脑端数据库和界面
             int count = currentComic.getReadCount() + 1;
@@ -158,7 +174,7 @@ public class ReaderActivity extends AppCompatActivity {
             currentComic.setLastReadTime(System.currentTimeMillis());
 
             // 异步通知电脑端递增阅读次数并同步最新统计
-            notifyRemoteRecordRead(currentComic.getFolderPath(), currentComic.getId(), 1, true);
+            notifyRemoteRecordRead(currentComic.getFolderPath(), currentComic.getId(), savedPage, true);
         } else {
             // 本地漫画模式：记录并递增阅读次数与最近阅读时间到本地
             int count = currentComic.getReadCount() + 1;
@@ -186,12 +202,16 @@ public class ReaderActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
 
         // 恢复上次已读进度
-        int savedPage = sp.getInt("progress_" + currentComic.getTitle(), 1);
         if (savedPage > 1 && savedPage <= total) {
+            final int targetPage = savedPage;
             recyclerView.post(() -> {
-                layoutManager.scrollToPositionWithOffset(savedPage - 1, 0);
-                updatePageIndicator(savedPage);
+                layoutManager.scrollToPositionWithOffset(targetPage - 1, 0);
+                updatePageIndicator(targetPage);
             });
+            recyclerView.postDelayed(() -> {
+                layoutManager.scrollToPositionWithOffset(targetPage - 1, 0);
+                updatePageIndicator(targetPage);
+            }, 120);
         } else {
             updatePageIndicator(1);
         }
@@ -245,6 +265,11 @@ public class ReaderActivity extends AppCompatActivity {
             }
             if (currentComic != null) {
                 sp.edit().putInt("progress_" + currentComic.getTitle(), 1).apply();
+                currentComic.setLastReadPage(1);
+                if (isOnlineMode) {
+                    lastReportedOnlinePage = 1;
+                    notifyRemoteRecordRead(currentComic.getFolderPath(), currentComic.getId(), 1, false);
+                }
             }
         }
     }
@@ -257,6 +282,38 @@ public class ReaderActivity extends AppCompatActivity {
         if (firstVisible == RecyclerView.NO_POSITION || firstVisible < 0 || firstVisible >= currentComic.getPagePaths().size()) {
             firstVisible = Math.max(0, seekPage.getProgress() - 1);
         }
+
+        if (isOnlineMode) {
+            String baseUrl = currentComic.getFolderPath();
+            if (baseUrl != null && baseUrl.startsWith("http")) {
+                int targetIndex = firstVisible;
+                new Thread(() -> {
+                    try {
+                        String cleanBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+                        String urlStr = cleanBase + "/api/comic-set-cover-page?id=" + java.net.URLEncoder.encode(currentComic.getId(), "UTF-8")
+                                + "&pageIndex=" + targetIndex;
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(urlStr).openConnection();
+                        conn.setRequestMethod("POST");
+                        conn.setConnectTimeout(6000);
+                        conn.setReadTimeout(6000);
+                        boolean ok = conn.getResponseCode() == 200;
+                        conn.disconnect();
+                        runOnUiThread(() -> {
+                            if (ok) {
+                                currentComic.setCoverPath(cleanBase + "/api/comic-cover?id=" + currentComic.getId() + "&_t=" + System.currentTimeMillis());
+                                Toast.makeText(ReaderActivity.this, "🖼️ 已将第 " + (targetIndex + 1) + " 页设为《" + currentComic.getTitle() + "》的远端封面", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(ReaderActivity.this, "⚠️ 设置远端封面失败，请重试", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> Toast.makeText(ReaderActivity.this, "⚠️ 设置远端封面网络异常", Toast.LENGTH_SHORT).show());
+                    }
+                }).start();
+            }
+            return;
+        }
+
         String pagePath = currentComic.getPagePaths().get(firstVisible);
         ShelfStorage.cleanupCustomCoverFiles(this, currentComic.getId());
         ShelfStorage.saveCustomCover(this, currentComic, pagePath);

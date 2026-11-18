@@ -45,45 +45,65 @@
                         app:tint="@color/text_white" />
                 </FrameLayout>
 
-                <!-- 标题与副标题统计 -->
+                <!-- 标题与副标题区域 (优化为上下纵向排列，防止屏幕宽度不足挤压截断徽标和遮挡图标) -->
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="10dp"
                     android:layout_marginEnd="8dp"
-                    android:orientation="horizontal"
+                    android:orientation="vertical"
                     android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/tv_title"
+                    <!-- 第一行：品牌标题 + 原生版 Material 胶囊徽标 -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="YY 漫阅"
-                        android:textColor="@color/text_white"
-                        android:textSize="19sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.02"
-                        android:singleLine="true" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
+                        <TextView
+                            android:id="@+id/tv_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/app_display_name"
+                            android:textColor="@color/text_white"
+                            android:textSize="17.5sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.02"
+                            android:singleLine="true" />
+
+                        <TextView
+                            android:id="@+id/tv_header_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:background="@drawable/btn_pill_surface"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="1.5dp"
+                            android:paddingBottom="1.5dp"
+                            android:text="@string/android_native_edition"
+                            android:textColor="@color/primary"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:singleLine="true" />
+                    </LinearLayout>
+
+                    <!-- 第二行：书架数量/在线书架状态统计 (独立行绝不截断和遮挡任何图标) -->
                     <TextView
                         android:id="@+id/tv_shelf_stats"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/btn_pill_surface"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:paddingTop="2dp"
-                        android:paddingBottom="2dp"
+                        android:layout_marginTop="2dp"
                         android:text="0 部漫画"
-                        android:textColor="@color/primary_light"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp"
-                        android:textStyle="bold"
+                        android:ellipsize="end"
                         android:singleLine="true" />
                 </LinearLayout>
 
-                <!-- Wi-Fi 局域网互传胶囊按钮 -->
+                <!-- Wi-Fi 局域网互传胶囊按钮 (已统一移至设置界面中) -->
                 <LinearLayout
                     android:id="@+id/btn_lan_transfer"
                     android:layout_width="wrap_content"
@@ -91,6 +111,7 @@
                     android:layout_marginEnd="8dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
+                    android:visibility="gone"
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:background="@drawable/btn_pill_surface"
@@ -125,6 +146,7 @@
                     android:src="@drawable/ic_refresh_vector"
                     android:padding="8dp"
                     app:tint="@color/text_secondary"
+                    android:tint="@color/text_secondary"
                     android:background="@drawable/btn_pill_surface"
                     android:clickable="true"
                     android:focusable="true"
@@ -138,6 +160,7 @@
                     android:src="@drawable/ic_settings_vector"
                     android:padding="8dp"
                     app:tint="@color/text_secondary"
+                    android:tint="@color/text_secondary"
                     android:background="@drawable/btn_pill_surface"
                     android:clickable="true"
                     android:focusable="true"
@@ -161,7 +184,7 @@
                     android:id="@+id/cb_batch_select_all"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="全选"
+                    android:text="@string/select_all"
                     android:textColor="@color/text_white"
                     android:textSize="13sp"
                     android:textStyle="bold"
@@ -198,7 +221,8 @@
                     android:textAllCaps="false"
                     android:backgroundTint="@color/danger_red"
                     android:textColor="@color/text_white"
-                    app:cornerRadius="8dp" />
+                    app:cornerRadius="8dp"
+                    app:elevation="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_batch_cancel"
@@ -215,9 +239,12 @@
                     android:text="退出"
                     android:textSize="12sp"
                     android:textAllCaps="false"
-                    android:backgroundTint="#2E3348"
+                    android:backgroundTint="@color/bg_container"
+                    app:strokeColor="@color/border_color"
+                    app:strokeWidth="1dp"
                     android:textColor="@color/text_secondary"
-                    app:cornerRadius="8dp" />
+                    app:cornerRadius="8dp"
+                    app:elevation="0dp" />
             </LinearLayout>
 
             <!-- 第二行：一体化搜索胶囊 + 排序与批量操作按钮 -->
@@ -290,7 +317,7 @@
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:layout_marginEnd="8dp"
-                    android:text="排序"
+                    android:text="@string/sort"
                     android:textSize="12.5sp"
                     android:textStyle="bold"
                     android:textAllCaps="false"
@@ -302,7 +329,8 @@
                     app:iconTint="@color/primary_light"
                     app:strokeColor="@color/border_color"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="12dp" />
+                    app:cornerRadius="12dp"
+                    app:elevation="0dp" />
 
                 <!-- 多选胶囊按钮 -->
                 <com.google.android.material.button.MaterialButton
@@ -317,7 +345,7 @@
                     android:paddingEnd="12dp"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
-                    android:text="多选"
+                    android:text="@string/batch"
                     android:textSize="12.5sp"
                     android:textStyle="bold"
                     android:textAllCaps="false"
@@ -329,7 +357,8 @@
                     app:iconTint="@color/text_secondary"
                     app:strokeColor="@color/border_color"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="12dp" />
+                    app:cornerRadius="12dp"
+                    app:elevation="0dp" />
 
             </LinearLayout>
 
@@ -340,8 +369,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 app:cardCornerRadius="12dp"
-                app:cardBackgroundColor="#261E19"
-                app:strokeColor="#66F59E0B"
+                app:cardBackgroundColor="@color/amber_badge_bg"
+                app:strokeColor="@color/amber_badge"
                 app:strokeWidth="1dp"
                 app:cardElevation="0dp"
                 android:visibility="gone">
@@ -358,7 +387,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="点击此处授予「所有文件访问权限」，即可极速读取手机内任意漫画目录"
-                        android:textColor="#FDE68A"
+                        android:textColor="@color/text_white"
                         android:textSize="12sp"
                         android:lineSpacingExtra="2dp" />
 
@@ -385,8 +414,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 app:cardCornerRadius="12dp"
-                app:cardBackgroundColor="#1B2432"
-                app:strokeColor="#3B82F6"
+                app:cardBackgroundColor="@color/primary_container"
+                app:strokeColor="@color/primary"
                 app:strokeWidth="1dp"
                 app:cardElevation="0dp"
                 android:visibility="gone">
@@ -407,7 +436,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="🟢 已连电脑 · 可免下载在线看漫画"
-                        android:textColor="#E0F2FE"
+                        android:textColor="@color/text_white"
                         android:textSize="12.5sp"
                         android:textStyle="bold"
                         android:singleLine="true"
@@ -430,9 +459,10 @@
                         android:textSize="11.5sp"
                         android:textStyle="bold"
                         android:textAllCaps="false"
-                        android:backgroundTint="#2563EB"
-                        android:textColor="@color/text_white"
-                        app:cornerRadius="8dp" />
+                        android:backgroundTint="@color/primary"
+                        android:textColor="#FFFFFF"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -577,7 +607,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:text="书架暂无漫画藏书"
+                        android:text="@string/shelf_empty_title"
                         android:textColor="@color/text_white"
                         android:textSize="17sp"
                         android:textStyle="bold" />
@@ -608,6 +638,43 @@
             android:visibility="gone" />
 
     </FrameLayout>
+
+    <!-- 异步任务/操作对方设备顺时针雷达扫描进度控件 (置于书架一键回到顶部按钮正上方) -->
+    <LinearLayout
+        android:id="@+id/layout_radar_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="138dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:visibility="gone"
+        android:elevation="8dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.comic.reader.RadarProgressView
+            android:id="@+id/radar_progress_view"
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+
+        <TextView
+            android:id="@+id/tv_radar_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:background="@drawable/btn_pill_surface"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:text="处理中"
+            android:textColor="@color/primary_light"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:singleLine="true" />
+    </LinearLayout>
 
     <!-- 右下角快捷回到顶部按钮 (书架向下滚动后自动浮现) -->
     <LinearLayout
@@ -640,7 +707,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="18dp"
         android:layout_marginBottom="22dp"
-        android:text="导入目录"
+        android:text="@string/import_directory"
         android:textColor="@color/text_white"
         android:textSize="13.5sp"
         android:textStyle="bold"

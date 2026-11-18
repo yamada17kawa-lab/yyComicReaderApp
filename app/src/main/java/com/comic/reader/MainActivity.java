@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +16,7 @@ import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -34,6 +36,13 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,6 +52,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
+    private long connectCooldownUntil = 0;
+
+    public static void applyAppLanguage(Context context, String langCode) {
+        if (langCode == null || langCode.isEmpty()) langCode = "zh";
+        java.util.Locale locale;
+        if ("en".equalsIgnoreCase(langCode)) {
+            locale = java.util.Locale.ENGLISH;
+        } else if ("ja".equalsIgnoreCase(langCode)) {
+            locale = java.util.Locale.JAPANESE;
+        } else {
+            locale = java.util.Locale.SIMPLIFIED_CHINESE;
+        }
+        java.util.Locale.setDefault(locale);
+        android.content.res.Resources res = context.getResources();
+        android.content.res.Configuration config = res.getConfiguration();
+        config.setLocale(locale);
+        res.updateConfiguration(config, res.getDisplayMetrics());
+    }
+
     private RecyclerView recyclerView;
     private ComicShelfAdapter adapter;
     private LinearLayout layoutEmpty;
@@ -96,14 +124,58 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar activeLanProgressBar;
     private TextView activeLanProgressView;
     private Runnable activeLanRefreshCallback;
+    private Runnable activeLanDisconnectCallback;
     private java.util.function.Consumer<LanTransferManager.PeerInfo> activeLanIncomingPeerCallback;
     private ComicItem pendingCoverComic;
+
+    // 异步任务/操作对方设备顺时针雷达扫描进度组件 (置于书架回到顶部按钮正上方)
+    private View layoutRadarProgress;
+    private RadarProgressView radarProgressView;
+    private TextView tvRadarLabel;
 
     private final ActivityResultLauncher<Intent> customCoverImageLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null && pendingCoverComic != null) {
                     Uri imgUri = result.getData().getData();
                     if (imgUri != null) {
+                        if (isOnlineShelfMode && currentConnectedPeer != null) {
+                            showRadarProgress("正在上传远端封面", 35);
+                            String peerIp = currentConnectedPeer.ip;
+                            int peerPort = currentConnectedPeer.port;
+                            ComicItem targetComic = pendingCoverComic;
+                            lanExecutor.execute(() -> {
+                                try (java.io.InputStream is = getContentResolver().openInputStream(imgUri)) {
+                                    if (is != null) {
+                                        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                                        byte[] buf = new byte[8192];
+                                        int len;
+                                        while ((len = is.read(buf)) != -1) {
+                                            bos.write(buf, 0, len);
+                                        }
+                                        byte[] bytes = bos.toByteArray();
+                                        boolean ok = lanTransferManager.setRemoteComicCoverFile(peerIp, peerPort, targetComic.getId(), bytes, "custom_cover.jpg");
+                                        mainHandler.post(() -> {
+                                            if (ok) {
+                                                targetComic.setCoverPath("http://" + peerIp + ":" + peerPort + "/api/comic-cover?id=" + targetComic.getId() + "&_t=" + System.currentTimeMillis());
+                                                adapter.notifyDataSetChanged();
+                                                completeRadarProgress("✅ 远端封面上传成功");
+                                                Toast.makeText(MainActivity.this, "🖼️ 已成功为远端《" + targetComic.getTitle() + "》更新自定义封面", Toast.LENGTH_SHORT).show();
+                                            } else {
+                                                completeRadarProgress("⚠️ 远端封面上传失败");
+                                                Toast.makeText(MainActivity.this, "⚠️ 上传远端封面失败，请重试", Toast.LENGTH_SHORT).show();
+                                            }
+                                        });
+                                    }
+                                } catch (Exception e) {
+                                    mainHandler.post(() -> {
+                                        completeRadarProgress("⚠️ 上传失败");
+                                        Toast.makeText(MainActivity.this, "读取封面文件失败", Toast.LENGTH_SHORT).show();
+                                    });
+                                }
+                            });
+                            return;
+                        }
+
                         String savedCoverPath = ShelfStorage.copyExternalUriToCustomCover(this, pendingCoverComic.getId(), imgUri);
                         if (savedCoverPath != null && !savedCoverPath.isEmpty()) {
                             ShelfStorage.saveCustomCover(this, pendingCoverComic, savedCoverPath);
@@ -139,7 +211,13 @@ public class MainActivity extends AppCompatActivity {
             });
 
     @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppThemeAndLocaleHelper.attachBaseContext(newBase));
+    }
+
+    @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        AppThemeAndLocaleHelper.applyAppTheme(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -181,22 +259,41 @@ public class MainActivity extends AppCompatActivity {
                     }
                 },
                 position -> {
-                    if (!isOnlineShelfMode && position >= 0 && position < displayComics.size()) {
-                        confirmRemoveComic(displayComics.get(position));
+                    if (position >= 0 && position < displayComics.size()) {
+                        ComicItem item = displayComics.get(position);
+                        if (isOnlineShelfMode) {
+                            confirmRemoveOnlineComic(item);
+                        } else {
+                            confirmRemoveComic(item);
+                        }
                     }
                 }
         );
         adapter.setCoverClickListener(position -> {
-            if (!isOnlineShelfMode && position >= 0 && position < displayComics.size()) {
+            if (position >= 0 && position < displayComics.size()) {
                 showCustomCoverDialog(displayComics.get(position));
             }
         });
         adapter.setRenameClickListener(position -> {
-            if (!isOnlineShelfMode && position >= 0 && position < displayComics.size()) {
+            if (position >= 0 && position < displayComics.size()) {
                 showRenameComicDialog(displayComics.get(position));
             }
         });
         recyclerView.setAdapter(adapter);
+
+        // 异步任务顺时针雷达扫描进度组件初始化
+        layoutRadarProgress = findViewById(R.id.layout_radar_progress);
+        radarProgressView = findViewById(R.id.radar_progress_view);
+        tvRadarLabel = findViewById(R.id.tv_radar_label);
+        if (layoutRadarProgress != null) {
+            layoutRadarProgress.setOnClickListener(v -> {
+                if (currentConnectedPeer != null) {
+                    showLanTransferDialog();
+                } else {
+                    Toast.makeText(MainActivity.this, "当前后台任务正在进行中...", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
 
         // 书架一键回到顶部按钮逻辑
         View fabShelfScrollTop = findViewById(R.id.fab_shelf_scroll_top);
@@ -324,15 +421,195 @@ public class MainActivity extends AppCompatActivity {
                 (status, percent, detail) -> {
                     showImportProgress(status, percent, detail);
                     updateActiveLanDialogProgress(status, percent, detail);
+                    updateRadarProgress(status, percent);
                     if (status != null && status.startsWith("⏩")) {
                         hideImportProgress(2000);
                         hideActiveLanDialogProgress(2400);
+                        hideRadarProgress(2000);
                     }
                 },
                 this::onLanPeerConnected,
                 this::onLanBatchTransferComplete
         );
+        lanTransferManager.setOnPairRequestListener(req -> {
+            mainHandler.post(() -> showIncomingPairRequestDialog(req));
+        });
+        lanTransferManager.setOnPeerDisconnectedListener((fromId, fromName, fromIp) -> {
+            handlePeerDisconnected(fromId, fromName, fromIp, true);
+        });
+        lanTransferManager.setOnRemoteOperationListener(new LanTransferManager.OnRemoteOperationListener() {
+            @Override
+            public boolean onRenameComic(String id, String title, String newTitle) {
+                ComicItem target = findLocalComic(id, title);
+                if (target == null) return false;
+                String err = ShelfStorage.renameComic(MainActivity.this, target, newTitle, allComics);
+                if (err == null) {
+                    mainHandler.post(() -> {
+                        sortComics();
+                        filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                        updateShelfStats();
+                    });
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onSetComicCoverPage(String id, int pageIndex) {
+                ComicItem target = findLocalComic(id, null);
+                if (target == null || target.getPagePaths() == null || pageIndex < 0 || pageIndex >= target.getPagePaths().size()) return false;
+                String page = target.getPagePaths().get(pageIndex);
+                ShelfStorage.saveCustomCover(MainActivity.this, target, page);
+                ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                mainHandler.post(() -> adapter.notifyDataSetChanged());
+                return true;
+            }
+
+            @Override
+            public boolean onResetComicCover(String id) {
+                ComicItem target = findLocalComic(id, null);
+                if (target == null) return false;
+                ShelfStorage.cleanupCustomCoverFiles(MainActivity.this, target.getId());
+                ShelfStorage.saveCustomCover(MainActivity.this, target, "");
+                ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                mainHandler.post(() -> adapter.notifyDataSetChanged());
+                return true;
+            }
+
+            @Override
+            public boolean onSetComicCoverFile(String id, byte[] imageBytes, String ext) {
+                ComicItem target = findLocalComic(id, null);
+                if (target == null || imageBytes == null || imageBytes.length == 0) return false;
+                try {
+                    File coversDir = new File(getExternalFilesDir(null), "custom_covers");
+                    if (!coversDir.exists()) coversDir.mkdirs();
+                    File dest = new File(coversDir, "cover_" + id + "_" + System.currentTimeMillis() + ext);
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(dest)) {
+                        fos.write(imageBytes);
+                    }
+                    ShelfStorage.saveCustomCover(MainActivity.this, target, dest.getAbsolutePath());
+                    ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                    mainHandler.post(() -> adapter.notifyDataSetChanged());
+                    return true;
+                } catch (Exception e) {
+                    return false;
+                }
+            }
+
+            @Override
+            public boolean onDeleteComic(String id, String title) {
+                ComicItem target = findLocalComic(id, title);
+                if (target == null) return false;
+                mainHandler.post(() -> {
+                    allComics.remove(target);
+                    displayComics.remove(target);
+                    filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                    updateShelfStats();
+                });
+                ShelfStorage.deleteComicPhysicalFiles(MainActivity.this, target);
+                ShelfStorage.clearComicHistory(MainActivity.this, target);
+                ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                return true;
+            }
+
+            @Override
+            public void onRecordRead(String id, String title, int page, boolean inc) {
+                ComicItem target = findLocalComic(id, title);
+                if (target != null) {
+                    if (inc) {
+                        target.setReadCount(target.getReadCount() + 1);
+                        target.setLastReadTime(System.currentTimeMillis());
+                    }
+                    if (page >= 1) {
+                        target.setLastReadPage(page);
+                    }
+                    ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
+                    mainHandler.post(() -> adapter.notifyDataSetChanged());
+                }
+            }
+        });
+        lanTransferManager.setOnUpdateReceivedListener(info -> {
+            mainHandler.post(() -> {
+                if (info != null) {
+                    Toast.makeText(MainActivity.this, "🚀 收到电脑端推送的更新安装包 (v" + info.versionName + ")", Toast.LENGTH_SHORT).show();
+                }
+                ApkUpdateManager.showUpdateDialog(MainActivity.this, info);
+            });
+        });
         lanTransferManager.start();
+    }
+
+    private ComicItem findLocalComic(String id, String title) {
+        if (id != null && !id.isEmpty()) {
+            for (ComicItem c : allComics) {
+                if (id.equals(c.getId()) || id.equals(c.getTitle())) return c;
+            }
+        }
+        if (title != null && !title.isEmpty()) {
+            for (ComicItem c : allComics) {
+                if (title.equals(c.getTitle())) return c;
+            }
+        }
+        return null;
+    }
+
+    private void showRadarProgress(String label, int percent) {
+        mainHandler.post(() -> {
+            if (layoutRadarProgress != null) {
+                layoutRadarProgress.setVisibility(View.VISIBLE);
+                layoutRadarProgress.setAlpha(1.0f);
+            }
+            if (tvRadarLabel != null && label != null) {
+                tvRadarLabel.setText(label);
+            }
+            if (radarProgressView != null) {
+                radarProgressView.setProgress(percent / 100f);
+            }
+        });
+    }
+
+    private void updateRadarProgress(String label, int percent) {
+        mainHandler.post(() -> {
+            if (layoutRadarProgress != null && layoutRadarProgress.getVisibility() != View.VISIBLE) {
+                layoutRadarProgress.setVisibility(View.VISIBLE);
+                layoutRadarProgress.setAlpha(1.0f);
+            }
+            if (tvRadarLabel != null && label != null) {
+                tvRadarLabel.setText(label);
+            }
+            if (radarProgressView != null) {
+                radarProgressView.setProgress(percent / 100f);
+            }
+        });
+    }
+
+    private void completeRadarProgress(String finishLabel) {
+        mainHandler.post(() -> {
+            if (tvRadarLabel != null && finishLabel != null) {
+                tvRadarLabel.setText(finishLabel);
+            }
+            if (radarProgressView != null) {
+                radarProgressView.setProgress(1.0f);
+            }
+            hideRadarProgress(1800);
+        });
+    }
+
+    private void hideRadarProgress(long delayMs) {
+        mainHandler.postDelayed(() -> {
+            if (layoutRadarProgress != null) {
+                layoutRadarProgress.animate()
+                        .alpha(0f)
+                        .setDuration(350)
+                        .withEndAction(() -> {
+                            if (layoutRadarProgress != null) {
+                                layoutRadarProgress.setVisibility(View.GONE);
+                                layoutRadarProgress.setAlpha(1f);
+                            }
+                        })
+                        .start();
+            }
+        }, delayMs);
     }
 
     private void updateActiveLanDialogProgress(String status, int percent, String detail) {
@@ -436,7 +713,7 @@ public class MainActivity extends AppCompatActivity {
         long lastReadTime = rc.lastReadTime;
         long importTime = rc.importTime > 0 ? rc.importTime : System.currentTimeMillis();
 
-        return new ComicItem(
+        ComicItem item = new ComicItem(
                 rc.id,
                 rc.title,
                 baseUrl,
@@ -446,6 +723,8 @@ public class MainActivity extends AppCompatActivity {
                 lastReadTime,
                 importTime
         );
+        item.setLastReadPage(rc.lastReadPage > 0 ? rc.lastReadPage : 1);
+        return item;
     }
 
     private void openRemoteComicOnline(LanTransferManager.PeerInfo peer, List<LanTransferManager.RemoteComic> remoteList, String targetId) {
@@ -536,6 +815,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void onLanPeerConnected(LanTransferManager.PeerInfo peer) {
         if (peer == null || peer.ip == null || peer.ip.isEmpty()) return;
+        if (lanTransferManager != null && lanTransferManager.isSelf(peer)) return;
         mainHandler.post(() -> {
             currentConnectedPeer = peer;
             updateMainHeaderLanButtonState(peer);
@@ -550,6 +830,39 @@ public class MainActivity extends AppCompatActivity {
 
             if (activeLanIncomingPeerCallback != null) {
                 activeLanIncomingPeerCallback.accept(peer);
+            }
+
+            // 如果对方不是 Android (例如 Windows 端)，且处于连接状态，主动检测对方是否有可更新的安卓客户端
+            if (peer.platform != null && !peer.platform.toLowerCase().contains("android")) {
+                ApkUpdateManager.checkRemoteUpdateAsync(this, peer.ip, peer.port, (info, hasUpdate) -> {
+                    if (hasUpdate) {
+                        ApkUpdateManager.showUpdateDialog(MainActivity.this, info);
+                    }
+                });
+            }
+        });
+    }
+
+    private void handlePeerDisconnected(String fromId, String fromName, String fromIp, boolean showToast) {
+        mainHandler.post(() -> {
+            boolean wasConnected = currentConnectedPeer != null;
+            String name = currentConnectedPeer != null ? currentConnectedPeer.deviceName : (fromName != null && !fromName.isEmpty() ? fromName : fromIp);
+            currentConnectedPeer = null;
+
+            // 核心：若正处于在线浏览对方书架状态，立即退出并返回本地离线书架！
+            if (isOnlineShelfMode) {
+                exitOnlineShelfMode();
+            }
+
+            updateMainHeaderLanButtonState(null);
+            updateOnlineShelfBanner();
+
+            if (activeLanDisconnectCallback != null) {
+                activeLanDisconnectCallback.run();
+            }
+
+            if (showToast && wasConnected) {
+                Toast.makeText(MainActivity.this, "对方设备【" + name + "】已断开局域网连接，已自动返回本地书架", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -579,6 +892,14 @@ public class MainActivity extends AppCompatActivity {
                 activeLanRefreshCallback.run();
             }
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == ApkUpdateManager.REQUEST_INSTALL_PERM_CODE) {
+            // onResume pending install check removed to prevent install loops
+        }
     }
 
     @Override
@@ -646,7 +967,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (isOnlineShelfMode && currentConnectedPeer == null) {
+            exitOnlineShelfMode();
+        }
         updatePermissionBanner();
+        ApkUpdateManager.checkPendingInstallOnResume(this);
 
         // 仅在本地书架模式下从 SharedPreferences 同步本地漫画阅读次数
         if (!isOnlineShelfMode && sp != null) {
@@ -658,6 +983,27 @@ public class MainActivity extends AppCompatActivity {
                 item.setReadCount(c);
                 item.setLastReadTime(t);
             }
+        } else if (isOnlineShelfMode && currentConnectedPeer != null) {
+            // 在线书架模式：后台静默拉取电脑端最新阅读进度与状态
+            lanExecutor.execute(() -> {
+                try {
+                    List<LanTransferManager.RemoteComic> fetched = lanTransferManager.fetchRemoteComics(currentConnectedPeer.ip, currentConnectedPeer.port, false);
+                    if (fetched != null && !fetched.isEmpty()) {
+                        mainHandler.post(() -> {
+                            if (isOnlineShelfMode && currentConnectedPeer != null) {
+                                onlineShelfComics.clear();
+                                for (LanTransferManager.RemoteComic rc : fetched) {
+                                    ComicItem item = buildOnlineComicItem(currentConnectedPeer, rc);
+                                    if (item != null) onlineShelfComics.add(item);
+                                }
+                                sortComics();
+                                filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                                updateShelfStats();
+                            }
+                        });
+                    }
+                } catch (Exception ignored) {}
+            });
         }
 
         if (!allComics.isEmpty() || !onlineShelfComics.isEmpty() || isOnlineShelfMode) {
@@ -820,6 +1166,65 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void confirmRemoveOnlineComic(ComicItem item) {
+        if (item == null || currentConnectedPeer == null) return;
+        new AlertDialog.Builder(this)
+                .setTitle("彻底删除电脑端漫画")
+                .setMessage("确定要彻底删除电脑上的《" + item.getTitle() + "》吗？\n\n⚠️ 警告：此操作将通过局域网指令，永久删除 Windows 电脑硬盘上的该漫画物理文件/压缩包及所有阅读记录！")
+                .setPositiveButton("彻底删除", (dialog, which) -> {
+                    String peerIp = currentConnectedPeer.ip;
+                    int peerPort = currentConnectedPeer.port;
+                    String comicId = item.getId();
+                    String comicTitle = item.getTitle();
+
+                    synchronized (onlineShelfComics) {
+                        onlineShelfComics.remove(item);
+                    }
+                    displayComics.remove(item);
+                    filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                    updateShelfStats();
+                    Toast.makeText(this, "🗑️ 正在通知电脑端删除《" + comicTitle + "》物理文件...", Toast.LENGTH_SHORT).show();
+
+                    lanExecutor.execute(() -> {
+                        boolean success = false;
+                        String errorMsg = "";
+                        try {
+                            String encodedId = java.net.URLEncoder.encode(comicId != null ? comicId : "", "UTF-8");
+                            String encodedTitle = java.net.URLEncoder.encode(comicTitle != null ? comicTitle : "", "UTF-8");
+                            String urlStr = "http://" + peerIp + ":" + peerPort + "/api/comic-delete?id=" + encodedId + "&title=" + encodedTitle;
+                            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(urlStr).openConnection();
+                            conn.setRequestMethod("POST");
+                            conn.setConnectTimeout(6000);
+                            conn.setReadTimeout(6000);
+                            int code = conn.getResponseCode();
+                            if (code >= 200 && code < 300) {
+                                success = true;
+                            } else {
+                                errorMsg = "HTTP " + code;
+                            }
+                            conn.disconnect();
+                        } catch (Exception e) {
+                            errorMsg = e.getMessage() != null ? e.getMessage() : "网络连接异常";
+                        }
+
+                        final boolean finalSuccess = success;
+                        final String finalErrorMsg = errorMsg;
+                        mainHandler.post(() -> {
+                            if (finalSuccess) {
+                                Toast.makeText(MainActivity.this, "✅ 已同步彻底删除电脑端《" + comicTitle + "》物理文件", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(MainActivity.this, "❌ 电脑端删除失败: " + finalErrorMsg, Toast.LENGTH_LONG).show();
+                                if (currentConnectedPeer != null) {
+                                    refreshLastFolder();
+                                }
+                            }
+                        });
+                    });
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     private void showRenameComicDialog(ComicItem item) {
         if (item == null) return;
 
@@ -849,6 +1254,43 @@ public class MainActivity extends AppCompatActivity {
         if (btnConfirm != null) {
             btnConfirm.setOnClickListener(v -> {
                 String newTitle = etInput != null ? etInput.getText().toString().trim() : "";
+                if (newTitle.isEmpty()) {
+                    if (tvError != null) {
+                        tvError.setText("⚠️ 漫画名称不能为空");
+                        tvError.setVisibility(View.VISIBLE);
+                    } else {
+                        Toast.makeText(this, "漫画名称不能为空", Toast.LENGTH_SHORT).show();
+                    }
+                    return;
+                }
+
+                if (isOnlineShelfMode && currentConnectedPeer != null) {
+                    showRadarProgress("正在修改远端漫画名", 35);
+                    String peerIp = currentConnectedPeer.ip;
+                    int peerPort = currentConnectedPeer.port;
+                    String comicId = item.getId();
+                    String oldTitle = item.getTitle();
+                    dialog.dismiss();
+
+                    lanExecutor.execute(() -> {
+                        boolean ok = lanTransferManager.renameRemoteComic(peerIp, peerPort, comicId, oldTitle, newTitle);
+                        mainHandler.post(() -> {
+                            if (ok) {
+                                item.setTitle(newTitle);
+                                sortComics();
+                                filterComics(etSearch != null ? etSearch.getText().toString() : "");
+                                updateShelfStats();
+                                completeRadarProgress("✅ 远端重命名成功");
+                                Toast.makeText(MainActivity.this, "✏️ 已成功将远端漫画重命名为《" + newTitle + "》", Toast.LENGTH_SHORT).show();
+                            } else {
+                                completeRadarProgress("⚠️ 远端重命名失败");
+                                Toast.makeText(MainActivity.this, "⚠️ 修改远端漫画名失败，请检查网络或重试", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    });
+                    return;
+                }
+
                 String err = ShelfStorage.renameComic(this, item, newTitle, allComics);
                 if (err != null) {
                     if (tvError != null) {
@@ -897,12 +1339,15 @@ public class MainActivity extends AppCompatActivity {
         View btnResetDefault = dialogView.findViewById(R.id.btn_reset_default_cover);
         RecyclerView recyclerPages = dialogView.findViewById(R.id.recycler_cover_pages);
 
-        List<String> pages = item.getPagePaths() != null ? item.getPagePaths() : new ArrayList<>();
+        final List<String> pages = new ArrayList<>();
+        if (item.getPagePaths() != null && !item.getPagePaths().isEmpty()) {
+            pages.addAll(item.getPagePaths());
+        }
         if (tvComicTitle != null) {
             tvComicTitle.setText(item.getTitle());
         }
         if (tvTotalPages != null) {
-            tvTotalPages.setText("共 " + pages.size() + " 页");
+            tvTotalPages.setText(pages.isEmpty() && isOnlineShelfMode ? "正在加载远端内页..." : ("共 " + pages.size() + " 页"));
         }
         if (ivCurrentPreview != null) {
             ImageLoader.getInstance().displayImage(this, item.getCoverPath(), ivCurrentPreview, 240, 340);
@@ -917,7 +1362,7 @@ public class MainActivity extends AppCompatActivity {
                 if (matchIdx >= 0) {
                     tvStatusBadge.setText("当前使用：漫画内第 " + (matchIdx + 1) + " 页");
                 } else {
-                    tvStatusBadge.setText("当前使用：外部自定义图片");
+                    tvStatusBadge.setText("当前使用：自定义图片封面");
                 }
             }
         }
@@ -935,6 +1380,29 @@ public class MainActivity extends AppCompatActivity {
 
         if (btnResetDefault != null) {
             btnResetDefault.setOnClickListener(v -> {
+                if (isOnlineShelfMode && currentConnectedPeer != null) {
+                    showRadarProgress("正在恢复默认封面", 40);
+                    String peerIp = currentConnectedPeer.ip;
+                    int peerPort = currentConnectedPeer.port;
+                    dialog.dismiss();
+                    lanExecutor.execute(() -> {
+                        boolean ok = lanTransferManager.resetRemoteComicCover(peerIp, peerPort, item.getId());
+                        mainHandler.post(() -> {
+                            if (ok) {
+                                item.setCoverPath("http://" + peerIp + ":" + peerPort + "/api/comic-cover?id=" + item.getId() + "&_t=" + System.currentTimeMillis());
+                                item.setCustomCoverPath("");
+                                adapter.notifyDataSetChanged();
+                                completeRadarProgress("✅ 默认封面已恢复");
+                                Toast.makeText(MainActivity.this, "↺ 已恢复《" + item.getTitle() + "》为默认第 1 页封面", Toast.LENGTH_SHORT).show();
+                            } else {
+                                completeRadarProgress("⚠️ 恢复封面失败");
+                                Toast.makeText(MainActivity.this, "恢复远端封面失败", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    });
+                    return;
+                }
+
                 ShelfStorage.cleanupCustomCoverFiles(this, item.getId());
                 ShelfStorage.saveCustomCover(this, item, "");
                 ShelfStorage.saveShelf(this, allComics, ShelfStorage.getSavedRootPath(this));
@@ -944,9 +1412,10 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        RecyclerView.Adapter[] pageAdapterHolder = new RecyclerView.Adapter[1];
         if (recyclerPages != null) {
             recyclerPages.setLayoutManager(new GridLayoutManager(this, 3));
-            recyclerPages.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            RecyclerView.Adapter<RecyclerView.ViewHolder> pageAdapter = new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 @Override
                 public RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
                     View v = getLayoutInflater().inflate(R.layout.item_cover_page_thumb, parent, false);
@@ -978,6 +1447,37 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     holder.itemView.setOnClickListener(v -> {
+                        if (isOnlineShelfMode && currentConnectedPeer != null) {
+                            int targetPageIdx = position;
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("🖼️ 设置远端封面确认")
+                                    .setMessage("确定将第 " + (targetPageIdx + 1) + " 页画面设为远端《" + item.getTitle() + "》的专属封面吗？")
+                                    .setPositiveButton("确认设置", (d, w) -> {
+                                        dialog.dismiss();
+                                        showRadarProgress("正在设置远端封面", 45);
+                                        String peerIp = currentConnectedPeer.ip;
+                                        int peerPort = currentConnectedPeer.port;
+                                        lanExecutor.execute(() -> {
+                                            boolean ok = lanTransferManager.setRemoteComicCoverFromPage(peerIp, peerPort, item.getId(), targetPageIdx);
+                                            mainHandler.post(() -> {
+                                                if (ok) {
+                                                    item.setCoverPath("http://" + peerIp + ":" + peerPort + "/api/comic-cover?id=" + item.getId() + "&_t=" + System.currentTimeMillis());
+                                                    item.setCustomCoverPath("remote_page_" + targetPageIdx);
+                                                    adapter.notifyDataSetChanged();
+                                                    completeRadarProgress("✅ 远端封面已生效");
+                                                    Toast.makeText(MainActivity.this, "🖼️ 已成功将第 " + (targetPageIdx + 1) + " 页设为封面", Toast.LENGTH_SHORT).show();
+                                                } else {
+                                                    completeRadarProgress("⚠️ 设置远端封面失败");
+                                                    Toast.makeText(MainActivity.this, "⚠️ 设置远端封面失败，请重试", Toast.LENGTH_SHORT).show();
+                                                }
+                                            });
+                                        });
+                                    })
+                                    .setNegativeButton("取消", null)
+                                    .show();
+                            return;
+                        }
+
                         ShelfStorage.cleanupCustomCoverFiles(MainActivity.this, item.getId());
                         ShelfStorage.saveCustomCover(MainActivity.this, item, pagePath);
                         ShelfStorage.saveShelf(MainActivity.this, allComics, ShelfStorage.getSavedRootPath(MainActivity.this));
@@ -991,7 +1491,40 @@ public class MainActivity extends AppCompatActivity {
                 public int getItemCount() {
                     return pages.size();
                 }
-            });
+            };
+            pageAdapterHolder[0] = pageAdapter;
+            recyclerPages.setAdapter(pageAdapter);
+
+            if (isOnlineShelfMode && currentConnectedPeer != null && pages.isEmpty()) {
+                String peerIp = currentConnectedPeer.ip;
+                int peerPort = currentConnectedPeer.port;
+                lanExecutor.execute(() -> {
+                    try {
+                        String mUrl = "http://" + peerIp + ":" + peerPort + "/api/comic-manifest?id=" + URLEncoder.encode(item.getId(), "UTF-8");
+                        HttpURLConnection conn = (HttpURLConnection) new URL(mUrl).openConnection();
+                        conn.setConnectTimeout(8000);
+                        conn.setReadTimeout(12000);
+                        if (conn.getResponseCode() == 200) {
+                            String jsonStr = LanTransferManager.readStreamAsString(conn.getInputStream());
+                            JSONObject obj = new JSONObject(jsonStr);
+                            JSONArray arr = obj.optJSONArray("pages");
+                            if (arr != null) {
+                                List<String> loadedUrls = new ArrayList<>();
+                                for (int i = 0; i < arr.length(); i++) {
+                                    loadedUrls.add("http://" + peerIp + ":" + peerPort + "/api/comic-page?id=" + URLEncoder.encode(item.getId(), "UTF-8") + "&index=" + i);
+                                }
+                                mainHandler.post(() -> {
+                                    pages.clear();
+                                    pages.addAll(loadedUrls);
+                                    item.setPagePaths(loadedUrls);
+                                    if (tvTotalPages != null) tvTotalPages.setText("共 " + pages.size() + " 页");
+                                    if (pageAdapterHolder[0] != null) pageAdapterHolder[0].notifyDataSetChanged();
+                                });
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                });
+            }
         }
 
         dialog.show();
@@ -1134,14 +1667,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void showSortDialog() {
         String[] sortOptions = new String[] {
-                "漫画名称 (A-Z)",
-                "🕒 导入时间 (最新在前)",
-                "🔥 阅读次数最多",
-                "⏱️ 最近阅读",
-                "📄 切片页数最多"
+                getString(R.string.sort_name),
+                getString(R.string.sort_time),
+                getString(R.string.sort_reads),
+                getString(R.string.sort_recent),
+                getString(R.string.sort_pages)
         };
         new AlertDialog.Builder(this)
-                .setTitle("选择排序方式")
+                .setTitle(R.string.sort_rules)
                 .setSingleChoiceItems(sortOptions, currentSortMode, (dialog, which) -> {
                     currentSortMode = which;
                     sp.edit().putInt("comic_sort_mode", currentSortMode).apply();
@@ -1149,7 +1682,7 @@ public class MainActivity extends AppCompatActivity {
                     filterComics(etSearch.getText().toString());
                     dialog.dismiss();
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 
@@ -1208,13 +1741,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (kw.isEmpty()) {
-            if (missingCount > 0) {
-                tvShelfStats.setText(activeTotal + " 部漫画 (" + missingCount + "部未显示)");
-            } else {
-                tvShelfStats.setText(activeTotal + " 部漫画");
-            }
+            tvShelfStats.setText(getString(R.string.shelf_stats_format, activeTotal));
         } else {
-            tvShelfStats.setText("匹配 " + displayComics.size() + " 部");
+            tvShelfStats.setText(displayComics.size() + " / " + activeTotal);
         }
     }
 
@@ -1236,104 +1765,64 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showSettingsDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_settings, null);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(dialogView)
-                .create();
-
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-
-        View btnClose = dialogView.findViewById(R.id.btn_close_settings);
-        if (btnClose != null) {
-            btnClose.setOnClickListener(v -> dialog.dismiss());
-        }
-
-        TextView tvBadge = dialogView.findViewById(R.id.tv_settings_missing_count_badge);
-        List<ComicItem> missingList = new ArrayList<>();
-        for (ComicItem item : allComics) {
-            if (item.isMissing()) missingList.add(item);
-        }
-        if (tvBadge != null) {
-            tvBadge.setText(missingList.size() + " 部");
-        }
-
-        View cardMissing = dialogView.findViewById(R.id.card_missing_books_setting);
-        View btnViewMissing = dialogView.findViewById(R.id.btn_view_missing_comics);
-        View.OnClickListener openMissingListener = v -> {
-            dialog.dismiss();
-            showMissingComicsDetailDialog();
-        };
-        if (cardMissing != null) cardMissing.setOnClickListener(openMissingListener);
-        if (btnViewMissing != null) btnViewMissing.setOnClickListener(openMissingListener);
-
-        // 局域网互传与接收目录设置
-        TextView tvTransferDir = dialogView.findViewById(R.id.tv_settings_transfer_dir);
-        if (tvTransferDir != null) {
-            tvTransferDir.setText(ShelfStorage.getTransferSaveDir(this));
-        }
-
-        View btnOpenLan = dialogView.findViewById(R.id.btn_settings_open_lan);
-        if (btnOpenLan != null) {
-            btnOpenLan.setOnClickListener(v -> {
-                dialog.dismiss();
-                showLanTransferDialog();
-            });
-        }
-
-        View btnChangeTransferDir = dialogView.findViewById(R.id.btn_settings_change_transfer_dir);
-        if (btnChangeTransferDir != null) {
-            btnChangeTransferDir.setOnClickListener(v -> {
-                openTransferFolderChooser(newDir -> {
-                    if (tvTransferDir != null) {
-                        tvTransferDir.setText(newDir);
+        SettingsDialogManager.showSettingsDialog(
+                this,
+                allComics,
+                lanTransferManager,
+                currentSortMode,
+                new SettingsDialogManager.OnSettingsActionListener() {
+                    @Override
+                    public void onOpenLanTransfer() {
+                        showLanTransferDialog();
                     }
-                });
-            });
-        }
 
-        View btnResetTransferDir = dialogView.findViewById(R.id.btn_settings_reset_transfer_dir);
-        if (btnResetTransferDir != null) {
-            btnResetTransferDir.setOnClickListener(v -> {
-                ShelfStorage.setTransferSaveDir(this, "");
-                String defDir = ShelfStorage.getTransferSaveDir(this);
-                if (tvTransferDir != null) {
-                    tvTransferDir.setText(defDir);
+                    @Override
+                    public void onOpenMissingComics() {
+                        showMissingComicsDetailDialog();
+                    }
+
+                    @Override
+                    public void onChangeTransferDir(java.util.function.Consumer<String> callback) {
+                        openTransferFolderChooser(newDir -> {
+                            if (callback != null) callback.accept(newDir);
+                        });
+                    }
+
+                    @Override
+                    public void onResetTransferDir(java.util.function.Consumer<String> callback) {
+                        ShelfStorage.setTransferSaveDir(MainActivity.this, "");
+                        String defDir = ShelfStorage.getTransferSaveDir(MainActivity.this);
+                        if (callback != null) callback.accept(defDir);
+                    }
+
+                    @Override
+                    public void onShowPasswordSetup(boolean isEnableFlow, java.util.function.Consumer<Boolean> callback) {
+                        showPasswordSetupDialog(isEnableFlow, success -> {
+                            if (callback != null) callback.accept(success);
+                        });
+                    }
+
+                    @Override
+                    public void onShowWhitelistManagement(Runnable onUpdated) {
+                        showWhitelistManagementDialog(onUpdated);
+                    }
+
+                    @Override
+                    public void onShowBlacklistManagement(Runnable onUpdated) {
+                        showBlacklistManagementDialog(onUpdated);
+                    }
+
+                    @Override
+                    public void onOpenSortDialog() {
+                        showSortDialog();
+                    }
+
+                    @Override
+                    public void onClearShelf() {
+                        confirmClearShelf();
+                    }
                 }
-                Toast.makeText(this, "已恢复默认接收目录: " + defDir, Toast.LENGTH_SHORT).show();
-            });
-        }
-
-        TextView tvSortMode = dialogView.findViewById(R.id.tv_settings_sort_mode);
-        String[] sortOptions = new String[] {
-                "漫画名称 (A-Z)",
-                "🕒 导入时间 (最新在前)",
-                "🔥 阅读次数最多",
-                "⏱️ 最近阅读",
-                "📄 切片页数最多"
-        };
-        if (tvSortMode != null && currentSortMode >= 0 && currentSortMode < sortOptions.length) {
-            tvSortMode.setText("当前: " + sortOptions[currentSortMode]);
-        }
-
-        View btnChangeSort = dialogView.findViewById(R.id.btn_settings_change_sort);
-        if (btnChangeSort != null) {
-            btnChangeSort.setOnClickListener(v -> {
-                dialog.dismiss();
-                showSortDialog();
-            });
-        }
-
-        View btnClearShelf = dialogView.findViewById(R.id.btn_settings_clear_shelf);
-        if (btnClearShelf != null) {
-            btnClearShelf.setOnClickListener(v -> {
-                dialog.dismiss();
-                confirmClearShelf();
-            });
-        }
-
-        dialog.show();
+        );
     }
 
     private void showMissingComicsDetailDialog() {
@@ -1497,10 +1986,366 @@ public class MainActivity extends AppCompatActivity {
         return sb.toString();
     }
 
+    private void showIncomingPairRequestDialog(LanTransferManager.PairRequestState req) {
+        if (isFinishing() || isDestroyed()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("收到局域网连接请求")
+                .setMessage("设备「" + req.fromName + "」(" + req.fromPlatform + ") 正在请求连接您的漫画阅读器，是否允许双方建立互传连接？")
+                .setPositiveButton("允许连接", (d, w) -> {
+                    lanTransferManager.respondPairRequest(req.reqId, true);
+                    Toast.makeText(this, "已允许 " + req.fromName + " 连接", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("拒绝连接", (d, w) -> {
+                    lanTransferManager.respondPairRequest(req.reqId, false);
+                    Toast.makeText(this, "已拒绝连接请求", Toast.LENGTH_SHORT).show();
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    private void showPasswordSetupDialog(boolean isFirstSetup, java.util.function.Consumer<Boolean> onComplete) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        Context dialogContext = builder.getContext();
+        TypedValue tvText = new TypedValue();
+        dialogContext.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tvText, true);
+        int textColor = tvText.data != 0 ? tvText.data : android.graphics.Color.parseColor("#0F172A");
+
+        TypedValue tvHint = new TypedValue();
+        dialogContext.getTheme().resolveAttribute(android.R.attr.textColorHint, tvHint, true);
+        int hintColor = tvHint.data != 0 ? tvHint.data : android.graphics.Color.parseColor("#64748B");
+
+        LinearLayout layout = new LinearLayout(dialogContext);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad / 2, pad, 0);
+
+        TextView tvTip = new TextView(dialogContext);
+        tvTip.setText("连接密码要求：至少 8 位，且必须同时包含数字、字母和特殊符号。");
+        tvTip.setTextColor(hintColor);
+        tvTip.setTextSize(12f);
+        tvTip.setPadding(0, 0, 0, pad / 2);
+        layout.addView(tvTip);
+
+        EditText etPwd = new EditText(dialogContext);
+        etPwd.setHint("输入新连接密码 (至少8位)");
+        etPwd.setHintTextColor(hintColor);
+        etPwd.setTextColor(textColor);
+        etPwd.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(etPwd);
+
+        EditText etConfirm = new EditText(dialogContext);
+        etConfirm.setHint("再次确认连接密码");
+        etConfirm.setHintTextColor(hintColor);
+        etConfirm.setTextColor(textColor);
+        etConfirm.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(etConfirm);
+
+        TextView tvError = new TextView(dialogContext);
+        tvError.setTextColor(android.graphics.Color.parseColor("#EF4444"));
+        tvError.setTextSize(12f);
+        tvError.setVisibility(View.GONE);
+        tvError.setPadding(0, pad / 4, 0, pad / 4);
+        layout.addView(tvError);
+
+        AlertDialog dialog = builder
+                .setTitle(isFirstSetup ? "设置连接密码" : "修改连接密码")
+                .setView(layout)
+                .setPositiveButton("确定", null)
+                .setNegativeButton("取消", (d, w) -> {
+                    if (onComplete != null) onComplete.accept(false);
+                })
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            android.widget.Button positiveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positiveBtn != null) {
+                positiveBtn.setOnClickListener(v -> {
+                    String p1 = etPwd.getText().toString();
+                    String p2 = etConfirm.getText().toString();
+                    if (p1.isEmpty() || p2.isEmpty()) {
+                        tvError.setText("⚠️ 密码不能为空，请完整输入");
+                        tvError.setVisibility(View.VISIBLE);
+                        Toast.makeText(MainActivity.this, "⚠️ 密码不能为空，请完整输入", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!p1.equals(p2)) {
+                        tvError.setText("⚠️ 两次输入的密码不一致，请重新检查");
+                        tvError.setVisibility(View.VISIBLE);
+                        Toast.makeText(MainActivity.this, "⚠️ 两次输入的密码不一致，请重新检查", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!LanTransferManager.isValidPassword(p1)) {
+                        tvError.setText("⚠️ 密码不符合要求：至少8位，且必须同时包含数字、字母和特殊符号！");
+                        tvError.setVisibility(View.VISIBLE);
+                        Toast.makeText(MainActivity.this, "⚠️ 密码不符合要求：至少8位，且必须同时包含数字、字母和特殊符号！", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    tvError.setVisibility(View.GONE);
+                    lanTransferManager.setConnectionPassword(p1);
+                    dialog.dismiss();
+                    Toast.makeText(MainActivity.this, "连接密码已保存", Toast.LENGTH_SHORT).show();
+                    if (onComplete != null) onComplete.accept(true);
+                });
+            }
+        });
+        dialog.show();
+    }
+
+    private void showInputPasswordDialog(LanTransferManager.PeerInfo peer, String initialError, java.util.function.Consumer<String> onPasswordEntered) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        Context dialogContext = builder.getContext();
+        TypedValue tvText = new TypedValue();
+        dialogContext.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tvText, true);
+        int textColor = tvText.data != 0 ? tvText.data : android.graphics.Color.parseColor("#0F172A");
+
+        TypedValue tvHint = new TypedValue();
+        dialogContext.getTheme().resolveAttribute(android.R.attr.textColorHint, tvHint, true);
+        int hintColor = tvHint.data != 0 ? tvHint.data : android.graphics.Color.parseColor("#64748B");
+
+        LinearLayout layout = new LinearLayout(dialogContext);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad / 2, pad, 0);
+
+        TextView tvTip = new TextView(dialogContext);
+        tvTip.setText("设备「" + peer.deviceName + "」已开启密码保护，请输入该设备的连接密码：");
+        tvTip.setTextColor(textColor);
+        tvTip.setTextSize(12.5f);
+        tvTip.setPadding(0, 0, 0, pad / 2);
+        layout.addView(tvTip);
+
+        EditText etPwd = new EditText(dialogContext);
+        etPwd.setHint("输入连接密码");
+        etPwd.setHintTextColor(hintColor);
+        etPwd.setTextColor(textColor);
+        etPwd.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(etPwd);
+
+        TextView tvError = new TextView(dialogContext);
+        tvError.setTextColor(android.graphics.Color.parseColor("#EF4444"));
+        tvError.setTextSize(12f);
+        tvError.setPadding(0, pad / 4, 0, pad / 4);
+        if (initialError != null && !initialError.isEmpty()) {
+            tvError.setText("⚠️ " + initialError);
+            tvError.setVisibility(View.VISIBLE);
+        } else {
+            tvError.setVisibility(View.GONE);
+        }
+        layout.addView(tvError);
+
+        AlertDialog dialog = builder
+                .setTitle("输入连接密码")
+                .setView(layout)
+                .setPositiveButton("连接", null)
+                .setNegativeButton("取消", null)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            android.widget.Button btnConnect = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (btnConnect != null) {
+                btnConnect.setOnClickListener(v -> {
+                    String pwd = etPwd.getText().toString().trim();
+                    if (pwd.isEmpty()) {
+                        tvError.setText("⚠️ 密码不能为空");
+                        tvError.setVisibility(View.VISIBLE);
+                        return;
+                    }
+                    tvError.setVisibility(View.GONE);
+                    dialog.dismiss();
+                    if (onPasswordEntered != null) onPasswordEntered.accept(pwd);
+                });
+            }
+        });
+        dialog.show();
+    }
+
+    private void showWhitelistManagementDialog(Runnable onUpdated) {
+        List<LanTransferManager.WhitelistEntry> list = lanTransferManager.getWhitelist();
+        if (list.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("信任设备白名单")
+                    .setMessage("暂无信任设备。\n\n双方连接成功后，可点击「⭐ 加入白名单」，白名单内的设备连接时无需手动确认即可直接连接。")
+                    .setPositiveButton("我知道了", null)
+                    .show();
+            return;
+        }
+
+        String[] items = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            LanTransferManager.WhitelistEntry w = list.get(i);
+            items[i] = w.deviceName + " (" + (w.platform.isEmpty() ? "设备" : w.platform) + ")";
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("信任设备白名单 (点击移除)")
+                .setItems(items, (d, which) -> {
+                    if (which >= 0 && which < list.size()) {
+                        LanTransferManager.WhitelistEntry target = list.get(which);
+                        new AlertDialog.Builder(this)
+                                .setTitle("移出白名单")
+                                .setMessage("确定将「" + target.deviceName + "」移出信任白名单吗？移出后对方连接需重新确认。")
+                                .setPositiveButton("确定移出", (d2, w2) -> {
+                                    lanTransferManager.removeFromWhitelist(target.deviceId);
+                                    Toast.makeText(this, "已移出: " + target.deviceName, Toast.LENGTH_SHORT).show();
+                                    if (onUpdated != null) onUpdated.run();
+                                })
+                                .setNegativeButton("取消", null)
+                                .show();
+                    }
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
+
+    private void showBlacklistManagementDialog(Runnable onUpdated) {
+        List<LanTransferManager.BlacklistEntry> list = lanTransferManager.getBlacklist();
+        if (list.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("设备黑名单")
+                    .setMessage("当前黑名单为空。\n\n双方连接后，可点击「🚫 黑名单」将对方设备拉黑，黑名单中的设备再次发起连接时将被系统自动拒绝。\n\n您也可以手动输入 IP 地址将其加入黑名单。")
+                    .setPositiveButton("➕ 手动添加IP", (d, w) -> showAddBlacklistManualDialog(onUpdated))
+                    .setNegativeButton("关闭", null)
+                    .show();
+            return;
+        }
+
+        List<String> displayList = new ArrayList<>();
+        displayList.add("➕ 手动添加 IP 到黑名单");
+        displayList.add("🗑️ 清空所有黑名单");
+        for (LanTransferManager.BlacklistEntry b : list) {
+            String name = (b.deviceName != null && !b.deviceName.isEmpty()) ? b.deviceName : "未知设备";
+            if (b.ip != null && !b.ip.isEmpty()) name += " (" + b.ip + ")";
+            displayList.add("🚫 " + name + " (点击移出)");
+        }
+
+        String[] items = displayList.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle("黑名单管理 (" + list.size() + ")")
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        showAddBlacklistManualDialog(onUpdated);
+                    } else if (which == 1) {
+                        new AlertDialog.Builder(this)
+                                .setTitle("清空黑名单")
+                                .setMessage("确定清空所有黑名单设备吗？清空后所有设备均可正常发起连接请求。")
+                                .setPositiveButton("清空全部", (d2, w2) -> {
+                                    for (LanTransferManager.BlacklistEntry target : list) {
+                                        lanTransferManager.removeFromBlacklist(target.deviceId, target.ip);
+                                    }
+                                    Toast.makeText(this, "已清空所有黑名单", Toast.LENGTH_SHORT).show();
+                                    if (onUpdated != null) onUpdated.run();
+                                })
+                                .setNegativeButton("取消", null)
+                                .show();
+                    } else {
+                        int itemIndex = which - 2;
+                        if (itemIndex >= 0 && itemIndex < list.size()) {
+                            LanTransferManager.BlacklistEntry target = list.get(itemIndex);
+                            new AlertDialog.Builder(this)
+                                    .setTitle("移出黑名单")
+                                    .setMessage("确定解除对「" + target.deviceName + "」的黑名单限制吗？移除后对方可正常发起连接。")
+                                    .setPositiveButton("移出并解封", (d2, w2) -> {
+                                        lanTransferManager.removeFromBlacklist(target.deviceId, target.ip);
+                                        Toast.makeText(this, "已从黑名单移除: " + target.deviceName, Toast.LENGTH_SHORT).show();
+                                        if (onUpdated != null) onUpdated.run();
+                                    })
+                                    .setNegativeButton("取消", null)
+                                    .show();
+                        }
+                    }
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
+
+    private void showAddBlacklistManualDialog(Runnable onUpdated) {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint("例如 192.168.1.5 或设备名称");
+        input.setSingleLine(true);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout container = new android.widget.FrameLayout(this);
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.leftMargin = pad;
+        params.rightMargin = pad;
+        input.setLayoutParams(params);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("手动添加至黑名单")
+                .setMessage("输入目标设备的 IP 地址或名称，该设备后续发起的互传连接将被自动拒绝：")
+                .setView(container)
+                .setPositiveButton("加入黑名单", (d, w) -> {
+                    String val = input.getText().toString().trim();
+                    if (!val.isEmpty()) {
+                        lanTransferManager.addToBlacklist("manual_" + val, val, val, "Manual");
+                        Toast.makeText(this, "已将 " + val + " 加入黑名单", Toast.LENGTH_SHORT).show();
+                        if (onUpdated != null) onUpdated.run();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showLanFilterActionMenu(
+            View anchor,
+            boolean isPull,
+            int missingCount,
+            int totalEntries,
+            boolean isOnlyMissing,
+            boolean isAllSelected,
+            Runnable onToggleSelectAll,
+            Runnable onToggleOnlyMissing,
+            Runnable onShowAll,
+            Runnable onClearSelection
+    ) {
+        androidx.appcompat.widget.PopupMenu popup = new androidx.appcompat.widget.PopupMenu(this, anchor);
+        android.view.Menu menu = popup.getMenu();
+
+        // 1. 全选 / 取消全选
+        menu.add(0, 1, 0, isAllSelected ? "☐ 取消全选" : "☑ 全选当前漫画 (" + totalEntries + ")");
+
+        // 2. 仅看未拥有 (带状态指示)
+        String missingLabel = isOnlyMissing
+                ? "✓ 仅看未拥有 (" + missingCount + ") [已开启]"
+                : "☐ 仅看未拥有 (" + missingCount + ")";
+        menu.add(0, 2, 0, missingLabel);
+
+        // 3. 显示全部
+        if (isOnlyMissing) {
+            menu.add(0, 3, 0, "↺ 显示全部漫画");
+        }
+
+        // 4. 清空所有选择
+        menu.add(0, 4, 0, "🗑️ 清空所有选择");
+
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                if (onToggleSelectAll != null) onToggleSelectAll.run();
+                return true;
+            } else if (id == 2) {
+                if (onToggleOnlyMissing != null) onToggleOnlyMissing.run();
+                return true;
+            } else if (id == 3) {
+                if (onShowAll != null) onShowAll.run();
+                return true;
+            } else if (id == 4) {
+                if (onClearSelection != null) onClearSelection.run();
+                return true;
+            }
+            return false;
+        });
+        popup.show();
+    }
+
     private void showLanTransferDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_lan_transfer, null);
-        android.app.Dialog dialog = new android.app.Dialog(this, R.style.Theme_ComicReader);
-        dialog.setContentView(dialogView);
+        try {
+            View dialogView = getLayoutInflater().inflate(R.layout.dialog_lan_transfer, null);
+            android.app.Dialog dialog = new android.app.Dialog(this, R.style.Theme_ComicReader);
+            dialog.setContentView(dialogView);
 
         if (dialog.getWindow() != null) {
             dialog.getWindow().setLayout(
@@ -1532,6 +2377,15 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout layoutPeers = dialogView.findViewById(R.id.layout_lan_peers);
         TextView tvPeerStatus = dialogView.findViewById(R.id.tv_lan_peer_status);
 
+        androidx.appcompat.widget.SwitchCompat switchRequirePwd = dialogView.findViewById(R.id.switch_lan_require_pwd);
+        TextView tvLanPwdStatus = dialogView.findViewById(R.id.tv_lan_pwd_status);
+        com.google.android.material.button.MaterialButton btnEditPwd = dialogView.findViewById(R.id.btn_lan_edit_pwd);
+        com.google.android.material.button.MaterialButton btnWhitelist = dialogView.findViewById(R.id.btn_lan_whitelist);
+        com.google.android.material.button.MaterialButton btnBlacklist = dialogView.findViewById(R.id.btn_lan_blacklist);
+        View layoutConnectedBar = dialogView.findViewById(R.id.layout_lan_connected_bar);
+        TextView tvConnectedInfo = dialogView.findViewById(R.id.tv_lan_connected_info);
+        com.google.android.material.button.MaterialButton btnToggleWhitelist = dialogView.findViewById(R.id.btn_lan_toggle_whitelist);
+
         if (btnToggleOptions != null && cardOptionsDrawer != null) {
             btnToggleOptions.setOnClickListener(v -> {
                 boolean expand = cardOptionsDrawer.getVisibility() != View.VISIBLE;
@@ -1551,8 +2405,7 @@ public class MainActivity extends AppCompatActivity {
         com.google.android.material.button.MaterialButton btnBrowseOnlineShelf = dialogView.findViewById(R.id.btn_lan_browse_online_shelf);
         com.google.android.material.button.MaterialButton btnTabPull = dialogView.findViewById(R.id.btn_tab_lan_pull);
         com.google.android.material.button.MaterialButton btnTabPush = dialogView.findViewById(R.id.btn_tab_lan_push);
-        View btnSelectAll = dialogView.findViewById(R.id.btn_lan_select_all);
-        com.google.android.material.button.MaterialButton btnFilterMissing = dialogView.findViewById(R.id.btn_lan_filter_missing);
+        com.google.android.material.button.MaterialButton btnFilterMenu = dialogView.findViewById(R.id.btn_lan_filter_menu);
         EditText etSearchComic = dialogView.findViewById(R.id.et_lan_search_comic);
         View btnClearSearch = dialogView.findViewById(R.id.btn_lan_clear_search);
         RecyclerView recyclerLanComics = dialogView.findViewById(R.id.recycler_lan_comics);
@@ -1591,6 +2444,9 @@ public class MainActivity extends AppCompatActivity {
 
         final List<LanTransferManager.PeerInfo> discoveredPeers = new ArrayList<>();
         final LanTransferManager.PeerInfo[] selectedPeer = new LanTransferManager.PeerInfo[1];
+        if (currentConnectedPeer != null) {
+            selectedPeer[0] = currentConnectedPeer;
+        }
         final List<LanTransferManager.RemoteComic> remoteComics = new ArrayList<>();
         final boolean[] isPullTab = new boolean[]{true}; // true = 从对方下载, false = 发送本机漫画
         final boolean[] onlyMissingFilter = new boolean[]{false}; // true = 仅看本机/对方没有的漫画
@@ -1601,13 +2457,30 @@ public class MainActivity extends AppCompatActivity {
         final LanComicSelectAdapter[] selectAdapter = new LanComicSelectAdapter[1];
 
         Runnable updateConnBadge = () -> {
-            if (tvConnBadge == null) return;
-            if (selectedPeer[0] != null) {
-                tvConnBadge.setText("已连: " + selectedPeer[0].deviceName);
-                tvConnBadge.setTextColor(android.graphics.Color.parseColor("#6EE7B7"));
-            } else {
-                tvConnBadge.setText("等待设备连接");
-                tvConnBadge.setTextColor(android.graphics.Color.parseColor("#94A3B8"));
+            if (tvConnBadge != null) {
+                if (selectedPeer[0] != null) {
+                    tvConnBadge.setText("已连: " + selectedPeer[0].deviceName);
+                    tvConnBadge.setTextColor(android.graphics.Color.parseColor("#6EE7B7"));
+                } else {
+                    tvConnBadge.setText("等待设备连接");
+                    tvConnBadge.setTextColor(android.graphics.Color.parseColor("#94A3B8"));
+                }
+            }
+            if (layoutConnectedBar != null) {
+                if (selectedPeer[0] != null) {
+                    layoutConnectedBar.setVisibility(View.VISIBLE);
+                    if (tvConnectedInfo != null) {
+                        tvConnectedInfo.setText("🟢 已连接: " + selectedPeer[0].deviceName + (selectedPeer[0].comicCount > 0 ? " (" + selectedPeer[0].comicCount + "部)" : ""));
+                    }
+                    if (btnToggleWhitelist != null) {
+                        boolean isWhitelisted = lanTransferManager.isDeviceWhitelisted(selectedPeer[0].deviceId);
+                        btnToggleWhitelist.setText(isWhitelisted ? "⭐ 移出白名单" : "⭐ 加入白名单");
+                        btnToggleWhitelist.setTextColor(android.graphics.Color.parseColor(isWhitelisted ? "#F87171" : "#FBBF24"));
+                        btnToggleWhitelist.setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor(isWhitelisted ? "#F87171" : "#FBBF24")));
+                    }
+                } else {
+                    layoutConnectedBar.setVisibility(View.GONE);
+                }
             }
         };
 
@@ -1649,6 +2522,8 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        final int[] lastMissingCountHolder = new int[]{0};
+
         Runnable refreshTabList = () -> {
             if (btnBrowseOnlineShelf != null) {
                 if (selectedPeer[0] != null && !remoteComics.isEmpty()) {
@@ -1675,25 +2550,28 @@ public class MainActivity extends AppCompatActivity {
                 if (!k.isEmpty()) remoteTitleKeys.add(k);
             }
 
+            int unselectedBg = ContextCompat.getColor(MainActivity.this, R.color.bg_container);
+            int unselectedText = ContextCompat.getColor(MainActivity.this, R.color.text_secondary);
+            int primaryColor = ContextCompat.getColor(MainActivity.this, R.color.primary);
+            int activeEmerald = ContextCompat.getColor(MainActivity.this, R.color.emerald_accent);
+
             if (btnTabPull != null) {
                 btnTabPull.setText("从对方下载 (" + remoteComics.size() + ")");
                 btnTabPull.setIconResource(R.drawable.ic_download_vector);
                 btnTabPull.setIconTint(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(isPullTab[0] ? "#FFFFFF" : "#CBD5E1")));
+                        isPullTab[0] ? Color.WHITE : unselectedText));
                 btnTabPull.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(isPullTab[0] ? "#6366F1" : "#222634")));
-                btnTabPull.setTextColor(android.graphics.Color.parseColor(
-                        isPullTab[0] ? "#FFFFFF" : "#CBD5E1"));
+                        isPullTab[0] ? primaryColor : unselectedBg));
+                btnTabPull.setTextColor(isPullTab[0] ? Color.WHITE : unselectedText);
             }
             if (btnTabPush != null) {
                 btnTabPush.setText("发送本机漫画 (" + localActive.size() + ")");
                 btnTabPush.setIconResource(R.drawable.ic_upload_vector);
                 btnTabPush.setIconTint(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(!isPullTab[0] ? "#FFFFFF" : "#CBD5E1")));
+                        !isPullTab[0] ? Color.WHITE : unselectedText));
                 btnTabPush.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(!isPullTab[0] ? "#6366F1" : "#222634")));
-                btnTabPush.setTextColor(android.graphics.Color.parseColor(
-                        !isPullTab[0] ? "#FFFFFF" : "#CBD5E1"));
+                        !isPullTab[0] ? primaryColor : unselectedBg));
+                btnTabPush.setTextColor(!isPullTab[0] ? Color.WHITE : unselectedText);
             }
 
             int missingTotalCount = 0;
@@ -1710,14 +2588,21 @@ public class MainActivity extends AppCompatActivity {
                     if (!peerHas) missingTotalCount++;
                 }
             }
+            lastMissingCountHolder[0] = missingTotalCount;
 
-            if (btnFilterMissing != null) {
-                String btnLabel = "未拥有 (" + missingTotalCount + ")";
-                btnFilterMissing.setText(btnLabel);
-                btnFilterMissing.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(onlyMissingFilter[0] ? "#059669" : "#222634")));
-                btnFilterMissing.setTextColor(android.graphics.Color.parseColor(
-                        onlyMissingFilter[0] ? "#FFFFFF" : "#CBD5E1"));
+            if (btnFilterMenu != null) {
+                if (onlyMissingFilter[0]) {
+                    btnFilterMenu.setText("未拥有 (" + missingTotalCount + ") ▾");
+                    btnFilterMenu.setBackgroundTintList(android.content.res.ColorStateList.valueOf(activeEmerald));
+                    btnFilterMenu.setTextColor(Color.WHITE);
+                    btnFilterMenu.setStrokeColor(android.content.res.ColorStateList.valueOf(activeEmerald));
+                } else {
+                    btnFilterMenu.setText("筛选 / 操作 ▾");
+                    btnFilterMenu.setBackgroundTintList(android.content.res.ColorStateList.valueOf(unselectedBg));
+                    btnFilterMenu.setTextColor(unselectedText);
+                    btnFilterMenu.setStrokeColor(android.content.res.ColorStateList.valueOf(
+                            ContextCompat.getColor(MainActivity.this, R.color.border_color)));
+                }
             }
 
             String kw = searchKeyword[0] != null ? searchKeyword[0].trim().toLowerCase() : "";
@@ -1792,9 +2677,178 @@ public class MainActivity extends AppCompatActivity {
 
         activeLanRefreshCallback = refreshTabList;
 
+        Runnable updateWhitelistAndBlacklistButtons = () -> {
+            if (btnWhitelist != null) {
+                int wCount = lanTransferManager.getWhitelist().size();
+                btnWhitelist.setText("⭐ 信任白名单 (" + wCount + ")");
+            }
+            if (btnBlacklist != null) {
+                int bCount = lanTransferManager.getBlacklist().size();
+                btnBlacklist.setText("🚫 黑名单管理 (" + bCount + ")");
+            }
+        };
+        updateWhitelistAndBlacklistButtons.run();
+
+        Runnable updateLanPasswordUi = () -> {
+            boolean req = lanTransferManager.isRequirePassword();
+            if (switchRequirePwd != null && switchRequirePwd.isChecked() != req) {
+                switchRequirePwd.setChecked(req);
+            }
+            if (btnEditPwd != null) {
+                btnEditPwd.setVisibility(req ? View.VISIBLE : View.GONE);
+            }
+            if (tvLanPwdStatus != null) {
+                if (req) {
+                    tvLanPwdStatus.setText("已启用（对方需输入密码直接连接，白名单设备免密免确认）");
+                    tvLanPwdStatus.setTextColor(android.graphics.Color.parseColor("#4ADE80"));
+                } else {
+                    tvLanPwdStatus.setText("未启用（对方连接需本机手动点击确认）");
+                    tvLanPwdStatus.setTextColor(android.graphics.Color.parseColor("#94A3B8"));
+                }
+            }
+        };
+        updateLanPasswordUi.run();
+
+        if (switchRequirePwd != null) {
+            switchRequirePwd.setOnCheckedChangeListener((btnView, isChecked) -> {
+                if (!btnView.isPressed()) return;
+                if (isChecked) {
+                    if (!lanTransferManager.hasConnectionPassword()) {
+                        switchRequirePwd.setChecked(false);
+                        showPasswordSetupDialog(true, success -> {
+                            if (success) {
+                                switchRequirePwd.setChecked(true);
+                                lanTransferManager.setRequirePassword(true);
+                                updateLanPasswordUi.run();
+                                Toast.makeText(MainActivity.this, "已开启密码连接保护", Toast.LENGTH_SHORT).show();
+                            } else {
+                                updateLanPasswordUi.run();
+                            }
+                        });
+                    } else {
+                        lanTransferManager.setRequirePassword(true);
+                        updateLanPasswordUi.run();
+                        Toast.makeText(MainActivity.this, "已开启密码连接限制", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    lanTransferManager.setRequirePassword(false);
+                    updateLanPasswordUi.run();
+                    Toast.makeText(MainActivity.this, "已关闭密码连接限制", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        if (btnEditPwd != null) {
+            btnEditPwd.setOnClickListener(v -> showPasswordSetupDialog(false, success -> updateLanPasswordUi.run()));
+        }
+
+        if (btnWhitelist != null) {
+            btnWhitelist.setOnClickListener(v -> showWhitelistManagementDialog(() -> {
+                updateWhitelistAndBlacklistButtons.run();
+                updateConnBadge.run();
+                if (activeLanRefreshCallback != null) activeLanRefreshCallback.run();
+            }));
+        }
+
+        if (btnBlacklist != null) {
+            btnBlacklist.setOnClickListener(v -> showBlacklistManagementDialog(() -> {
+                updateWhitelistAndBlacklistButtons.run();
+                updateConnBadge.run();
+                if (activeLanRefreshCallback != null) activeLanRefreshCallback.run();
+            }));
+        }
+
+        if (btnToggleWhitelist != null) {
+            btnToggleWhitelist.setOnClickListener(v -> {
+                LanTransferManager.PeerInfo p = selectedPeer[0] != null ? selectedPeer[0] : currentConnectedPeer;
+                if (p == null) return;
+                boolean isWhitelisted = lanTransferManager.isDeviceWhitelisted(p.deviceId);
+                if (isWhitelisted) {
+                    lanTransferManager.removeFromWhitelist(p.deviceId);
+                    Toast.makeText(MainActivity.this, "已将 " + p.deviceName + " 移出白名单", Toast.LENGTH_SHORT).show();
+                } else {
+                    lanTransferManager.addToWhitelist(p.deviceId, p.deviceName, p.platform);
+                    Toast.makeText(MainActivity.this, "已将 " + p.deviceName + " 加入信任白名单", Toast.LENGTH_SHORT).show();
+                }
+                updateConnBadge.run();
+                updateWhitelistAndBlacklistButtons.run();
+            });
+        }
+
         final Runnable[] renderPeerChipsHolder = new Runnable[1];
+
+        View btnLanDisconnect = dialogView.findViewById(R.id.btn_lan_disconnect);
+        if (btnLanDisconnect != null) {
+            btnLanDisconnect.setOnClickListener(v -> {
+                LanTransferManager.PeerInfo peerToDisconnect = selectedPeer[0] != null ? selectedPeer[0] : currentConnectedPeer;
+                if (peerToDisconnect != null) {
+                    lanTransferManager.disconnect(peerToDisconnect);
+                }
+                selectedPeer[0] = null;
+                currentConnectedPeer = null;
+                updateConnBadge.run();
+                refreshTabList.run();
+                if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+                if (isOnlineShelfMode) {
+                    exitOnlineShelfMode();
+                }
+                updateMainHeaderLanButtonState(null);
+                updateOnlineShelfBanner();
+                Toast.makeText(MainActivity.this, peerToDisconnect != null ? ("已断开与【" + peerToDisconnect.deviceName + "】的连接，已返回本地书架") : "已断开连接，已返回本地书架", Toast.LENGTH_SHORT).show();
+                try {
+                    dialog.dismiss();
+                } catch (Exception ignored) {}
+            });
+        }
+
+        View btnLanAddBlacklist = dialogView.findViewById(R.id.btn_lan_add_blacklist);
+        if (btnLanAddBlacklist != null) {
+            btnLanAddBlacklist.setOnClickListener(v -> {
+                LanTransferManager.PeerInfo peerToBlacklist = selectedPeer[0] != null ? selectedPeer[0] : currentConnectedPeer;
+                if (peerToBlacklist == null) {
+                    Toast.makeText(MainActivity.this, "当前无已连接设备可加入黑名单", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("确认加入黑名单？")
+                        .setMessage("将【" + peerToBlacklist.deviceName + "】加入黑名单后，该设备未来发起的连接请求将被系统直接拒绝，且当前连接将立即断开。")
+                        .setPositiveButton("加入黑名单并断开", (d, which) -> {
+                            lanTransferManager.addToBlacklist(peerToBlacklist.deviceId, peerToBlacklist.deviceName, peerToBlacklist.ip, peerToBlacklist.platform);
+                            lanTransferManager.disconnect(peerToBlacklist);
+                            updateWhitelistAndBlacklistButtons.run();
+                            selectedPeer[0] = null;
+                            currentConnectedPeer = null;
+                            updateConnBadge.run();
+                            refreshTabList.run();
+                            if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+                            if (isOnlineShelfMode) {
+                                exitOnlineShelfMode();
+                            }
+                            updateMainHeaderLanButtonState(null);
+                            updateOnlineShelfBanner();
+                            Toast.makeText(MainActivity.this, "已将【" + peerToBlacklist.deviceName + "】加入黑名单并断开连接", Toast.LENGTH_SHORT).show();
+                            try {
+                                dialog.dismiss();
+                            } catch (Exception ignored) {}
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+            });
+        }
+
+        activeLanDisconnectCallback = () -> {
+            selectedPeer[0] = null;
+            updateConnBadge.run();
+            refreshTabList.run();
+            if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+            try {
+                if (dialog.isShowing()) {
+                    dialog.dismiss();
+                }
+            } catch (Exception ignored) {}
+        };
         final java.util.function.BiConsumer<LanTransferManager.PeerInfo, Boolean> connectToPeerAction = (p, notifyRemote) -> {
-            if (p == null) return;
+            if (p == null || (lanTransferManager != null && lanTransferManager.isSelf(p))) return;
             boolean isNewPeer = selectedPeer[0] == null || !selectedPeer[0].ip.equals(p.ip);
             selectedPeer[0] = p;
             currentConnectedPeer = p;
@@ -1803,7 +2857,7 @@ public class MainActivity extends AppCompatActivity {
             if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
 
             if (tvPeerStatus != null) {
-                tvPeerStatus.setText("正在同步 " + p.deviceName + " (" + p.ip + ") 的漫画列表...");
+                tvPeerStatus.setText("正在同步 " + p.deviceName + " 的漫画列表...");
             }
             lanExecutor.execute(() -> {
                 try {
@@ -1814,7 +2868,7 @@ public class MainActivity extends AppCompatActivity {
                         p.comicCount = remoteComics.size();
                         if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
                         if (tvPeerStatus != null) {
-                            tvPeerStatus.setText("🟢 已双向连接: " + p.deviceName + " (" + p.ip + ") · 对方共 " + remoteComics.size() + " 部漫画");
+                            tvPeerStatus.setText("🟢 已双向连接: " + p.deviceName + " · 对方共 " + remoteComics.size() + " 部漫画");
                         }
                         if (notifyRemote && isNewPeer) {
                             String peerKey = p.ip + ":" + p.port;
@@ -1826,12 +2880,78 @@ public class MainActivity extends AppCompatActivity {
                     });
                 } catch (Exception e) {
                     mainHandler.post(() -> {
-                        if (tvPeerStatus != null) {
+                        if (e.getMessage() != null && e.getMessage().contains("session_expired")) {
+                            selectedPeer[0] = null;
+                            currentConnectedPeer = null;
+                            updateConnBadge.run();
+                            updateMainHeaderLanButtonState(null);
+                            if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+                            if (tvPeerStatus != null) {
+                                tvPeerStatus.setText("对方连接已失效，请重新点击连接");
+                            }
+                            Toast.makeText(MainActivity.this, "⚠️ 对方连接已失效或已退出，请重新连接", Toast.LENGTH_SHORT).show();
+                        } else if (tvPeerStatus != null) {
                             tvPeerStatus.setText("读取设备书架失败: " + e.getMessage());
                         }
                     });
                 }
             });
+        };
+
+        final java.util.function.BiConsumer<LanTransferManager.PeerInfo, String>[] doHandshakeConnectHolder = new java.util.function.BiConsumer[1];
+
+        doHandshakeConnectHolder[0] = (peer, password) -> {
+            final java.util.concurrent.atomic.AtomicBoolean cancelFlag = new java.util.concurrent.atomic.AtomicBoolean(false);
+            AlertDialog waitDialog = new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("正在连接设备")
+                    .setMessage("正在向「" + peer.deviceName + "」发送连接申请，请等待对方确认...")
+                    .setNegativeButton("取消", (d, w) -> {
+                        cancelFlag.set(true);
+                    })
+                    .setCancelable(false)
+                    .create();
+            waitDialog.show();
+
+            lanExecutor.execute(() -> {
+                LanTransferManager.ConnectResult res = lanTransferManager.connectToPeerWithHandshake(peer, password, cancelFlag);
+                mainHandler.post(() -> {
+                    try { waitDialog.dismiss(); } catch (Exception ignored) {}
+                    if (cancelFlag.get()) return;
+
+                    if (res.ok) {
+                        connectToPeerAction.accept(peer, false);
+                        Toast.makeText(MainActivity.this, "🟢 已与 " + peer.deviceName + " 成功建立连接", Toast.LENGTH_SHORT).show();
+                    } else if ("blacklisted".equals(res.status)) {
+                        Toast.makeText(MainActivity.this, "🚫 对方设备已将本机加入黑名单，禁止连接", Toast.LENGTH_SHORT).show();
+                        if (tvPeerStatus != null) tvPeerStatus.setText("对方设备已将本机加入黑名单");
+                    } else if ("need_password".equals(res.status)) {
+                        showInputPasswordDialog(peer, null, enteredPwd -> doHandshakeConnectHolder[0].accept(peer, enteredPwd));
+                    } else if ("wrong_password".equals(res.status)) {
+                        showInputPasswordDialog(peer, "连接密码错误，请重新输入", enteredPwd -> doHandshakeConnectHolder[0].accept(peer, enteredPwd));
+                    } else if ("rejected".equals(res.status)) {
+                        Toast.makeText(MainActivity.this, "对方设备拒绝了连接请求", Toast.LENGTH_SHORT).show();
+                        if (tvPeerStatus != null) tvPeerStatus.setText("对方设备拒绝了连接请求");
+                    } else if ("timeout".equals(res.status)) {
+                        Toast.makeText(MainActivity.this, "等待对方确认超时", Toast.LENGTH_SHORT).show();
+                        if (tvPeerStatus != null) tvPeerStatus.setText("等待对方确认超时");
+                    } else {
+                        Toast.makeText(MainActivity.this, res.message != null ? res.message : "连接失败", Toast.LENGTH_SHORT).show();
+                        if (tvPeerStatus != null) tvPeerStatus.setText(res.message);
+                    }
+                });
+            });
+        };
+
+        final java.util.function.Consumer<LanTransferManager.PeerInfo> startPeerConnectionFlow = peer -> {
+            if (peer == null) return;
+            if (lanTransferManager != null && lanTransferManager.isSelf(peer)) {
+                Toast.makeText(MainActivity.this, "无法连接本机自身设备", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // 优先级交由服务端统一判定：黑白名单最高 -> 密码次之 -> 基础确认
+            // 先尝试发起握手请求：若对方将本机加入了白名单，无论对方是否开启密码，均可免密免确认直连
+            // 若对方需要密码且本机不在白名单中，服务端会返回 need_password，随后自动唤起输入密码弹窗
+            doHandshakeConnectHolder[0].accept(peer, null);
         };
 
         renderPeerChipsHolder[0] = () -> {
@@ -1840,13 +2960,33 @@ public class MainActivity extends AppCompatActivity {
             float density = getResources().getDisplayMetrics().density;
 
             for (LanTransferManager.PeerInfo p : discoveredPeers) {
+                if (p == null || !"YYComicReader".equals(p.app) || (lanTransferManager != null && lanTransferManager.isSelf(p))) continue;
+
                 boolean active = selectedPeer[0] != null
-                        && selectedPeer[0].ip.equals(p.ip)
-                        && selectedPeer[0].port == p.port;
+                        && ((selectedPeer[0].deviceId != null && !selectedPeer[0].deviceId.isEmpty() && selectedPeer[0].deviceId.equals(p.deviceId))
+                        || (selectedPeer[0].ip != null && selectedPeer[0].ip.equals(p.ip) && selectedPeer[0].port == p.port));
+
+                boolean isWhitelisted = lanTransferManager.isDeviceWhitelisted(p.deviceId);
+                boolean reqPwd = p.requirePassword;
+
+                StringBuilder sb = new StringBuilder();
+                sb.append(p.deviceName);
+                if (p.comicCount > 0) {
+                    sb.append(" (").append(p.comicCount).append("部)");
+                }
+                if (isWhitelisted) {
+                    sb.append(" ⭐白名单");
+                } else if (reqPwd) {
+                    sb.append(" 🔒需密码");
+                }
+                if (active) {
+                    sb.append(" ✓已连");
+                }
+
                 com.google.android.material.button.MaterialButton chip =
                         new com.google.android.material.button.MaterialButton(MainActivity.this);
                 boolean isWin = p.platform != null && p.platform.toLowerCase().contains("win");
-                chip.setText(p.deviceName + " (" + p.ip + ")" + (active ? " ✓" : ""));
+                chip.setText(sb.toString());
                 chip.setIconResource(isWin ? R.drawable.ic_laptop_vector : R.drawable.ic_wifi_vector);
                 chip.setIconSize(Math.round(15 * density));
                 chip.setIconPadding(Math.round(6 * density));
@@ -1858,8 +2998,14 @@ public class MainActivity extends AppCompatActivity {
                 chip.setPadding(Math.round(12 * density), 0, Math.round(12 * density), 0);
                 chip.setTextColor(android.graphics.Color.WHITE);
                 chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                        android.graphics.Color.parseColor(active ? "#059669" : "#222634")));
+                        android.graphics.Color.parseColor(active ? "#059669" : (isWhitelisted ? "#1E293B" : "#222634"))));
+                if (isWhitelisted) {
+                    chip.setStrokeColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#F59E0B")));
+                    chip.setStrokeWidth(Math.round(1 * density));
+                }
                 chip.setCornerRadius(Math.round(8 * density));
+                chip.setElevation(0f);
+                chip.setStateListAnimator(null);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         Math.round(36 * density)
@@ -1869,12 +3015,18 @@ public class MainActivity extends AppCompatActivity {
                 chip.setInsetTop(0);
                 chip.setInsetBottom(0);
 
-                chip.setOnClickListener(v -> connectToPeerAction.accept(p, true));
+                chip.setOnClickListener(v -> {
+                    if (active) return;
+                    startPeerConnectionFlow.accept(p);
+                });
                 layoutPeers.addView(chip);
             }
         };
 
         activeLanIncomingPeerCallback = incomingPeer -> {
+            if (incomingPeer == null || (lanTransferManager != null && lanTransferManager.isSelf(incomingPeer))) {
+                return;
+            }
             boolean found = false;
             for (int i = 0; i < discoveredPeers.size(); i++) {
                 if (discoveredPeers.get(i).ip.equals(incomingPeer.ip)) {
@@ -1892,6 +3044,7 @@ public class MainActivity extends AppCompatActivity {
         };
 
         dialog.setOnDismissListener(d -> {
+            activeLanDisconnectCallback = null;
             if (activeLanProgressView == tvTransferProgress) {
                 activeLanProgressCard = null;
                 activeLanProgressTitle = null;
@@ -1902,12 +3055,6 @@ public class MainActivity extends AppCompatActivity {
                 activeLanIncomingPeerCallback = null;
             }
         });
-
-        // 如果之前已经有对端设备连接了本手机，打开面板时直接恢复展示该连接
-        if (currentConnectedPeer != null) {
-            discoveredPeers.add(currentConnectedPeer);
-            connectToPeerAction.accept(currentConnectedPeer, false);
-        }
 
         Runnable triggerScanPeers = () -> {
             if (lanTransferManager == null) return;
@@ -1926,6 +3073,7 @@ public class MainActivity extends AppCompatActivity {
                         btnScanPeers.setText("扫描");
                     }
                     for (LanTransferManager.PeerInfo p : peers) {
+                        if (p == null || !"YYComicReader".equals(p.app) || (lanTransferManager != null && lanTransferManager.isSelf(p))) continue;
                         boolean exists = false;
                         for (int i = 0; i < discoveredPeers.size(); i++) {
                             if (discoveredPeers.get(i).ip.equals(p.ip)) {
@@ -1943,11 +3091,52 @@ public class MainActivity extends AppCompatActivity {
                             tvPeerStatus.setText("暂未自动发现设备。请确认电脑端与手机连接同一 Wi-Fi，或直接输入电脑 IP 连接。");
                         }
                     } else if (selectedPeer[0] == null) {
-                        connectToPeerAction.accept(discoveredPeers.get(0), true);
+                        if (tvPeerStatus != null) {
+                            tvPeerStatus.setText("发现 " + discoveredPeers.size() + " 台可用设备，请点击上方设备建立连接。");
+                        }
                     }
                 });
             });
         };
+
+        // 严格消除幽灵/断线假连接与本机自身连接：只有对方设备且已启动才保持连接
+        if (currentConnectedPeer != null && lanTransferManager != null && lanTransferManager.isSelf(currentConnectedPeer)) {
+            currentConnectedPeer = null;
+            selectedPeer[0] = null;
+            updateMainHeaderLanButtonState(null);
+            updateConnBadge.run();
+        }
+
+        if (currentConnectedPeer != null) {
+            final LanTransferManager.PeerInfo prevPeer = currentConnectedPeer;
+            if (tvPeerStatus != null) {
+                tvPeerStatus.setText("正在检测与 " + prevPeer.deviceName + " 的连接状态...");
+            }
+            lanExecutor.execute(() -> {
+                LanTransferManager.PeerInfo alive = lanTransferManager.pingPeer(prevPeer.ip, prevPeer.port, 1200);
+                mainHandler.post(() -> {
+                    if (alive != null && !lanTransferManager.isSelf(alive)) {
+                        currentConnectedPeer = alive;
+                        selectedPeer[0] = alive;
+                        discoveredPeers.add(alive);
+                        updateConnBadge.run();
+                        if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+                        connectToPeerAction.accept(alive, false);
+                    } else {
+                        currentConnectedPeer = null;
+                        selectedPeer[0] = null;
+                        updateMainHeaderLanButtonState(null);
+                        updateConnBadge.run();
+                        if (tvPeerStatus != null) {
+                            tvPeerStatus.setText("未检测到已连接的设备，请点击下方设备建立连接。");
+                        }
+                        triggerScanPeers.run();
+                    }
+                });
+            });
+        } else {
+            triggerScanPeers.run();
+        }
 
         if (btnScanPeers != null) {
             btnScanPeers.setOnClickListener(v -> triggerScanPeers.run());
@@ -2010,13 +3199,26 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, "请输入电脑或手机的局域网 IP 地址", Toast.LENGTH_SHORT).show();
                     return;
                 }
+                if (lanTransferManager != null && lanTransferManager.isSelfIp(host)) {
+                    Toast.makeText(this, "该地址为本机自身设备，无需连接", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 if (tvPeerStatus != null) {
                     tvPeerStatus.setText("正在连接 " + host + " ...");
                 }
+                btnConnectIp.setEnabled(false);
                 lanExecutor.execute(() -> {
                     LanTransferManager.PeerInfo peer = lanTransferManager.pingPeer(host, LanTransferManager.DEFAULT_HTTP_PORT, 3500);
                     mainHandler.post(() -> {
+                        btnConnectIp.setEnabled(true);
                         if (peer != null) {
+                            if (lanTransferManager != null && (lanTransferManager.isSelf(peer) || lanTransferManager.isSelfIp(peer.ip))) {
+                                if (tvPeerStatus != null) {
+                                    tvPeerStatus.setText("该地址为本机自身设备，无需连接");
+                                }
+                                Toast.makeText(MainActivity.this, "该设备为本机自身，无需连接", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
                             boolean found = false;
                             for (int i = 0; i < discoveredPeers.size(); i++) {
                                 if (discoveredPeers.get(i).ip.equals(peer.ip)) {
@@ -2026,10 +3228,11 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }
                             if (!found) discoveredPeers.add(0, peer);
-                            connectToPeerAction.accept(peer, true);
+                            if (renderPeerChipsHolder[0] != null) renderPeerChipsHolder[0].run();
+                            startPeerConnectionFlow.accept(peer);
                         } else {
                             if (tvPeerStatus != null) {
-                                tvPeerStatus.setText("❌ 无法连接到 " + host + "，请确认处于同一 Wi-Fi 且电脑已打开阅读器");
+                                tvPeerStatus.setText("❌ 无法连接到 " + host + "，请确认处于同一 Wi-Fi 且对方已打开阅读器");
                             }
                         }
                     });
@@ -2051,13 +3254,34 @@ public class MainActivity extends AppCompatActivity {
                 refreshTabList.run();
             });
         }
-        if (btnSelectAll != null) {
-            btnSelectAll.setOnClickListener(v -> selectAdapter[0].toggleSelectAll());
-        }
-        if (btnFilterMissing != null) {
-            btnFilterMissing.setOnClickListener(v -> {
-                onlyMissingFilter[0] = !onlyMissingFilter[0];
-                refreshTabList.run();
+        if (btnFilterMenu != null) {
+            btnFilterMenu.setOnClickListener(v -> {
+                int visibleCount = selectAdapter[0] != null ? selectAdapter[0].getItemCount() : 0;
+                boolean isAllSelected = selectAdapter[0] != null && selectAdapter[0].isAllSelected();
+                showLanFilterActionMenu(
+                        btnFilterMenu,
+                        isPullTab[0],
+                        lastMissingCountHolder[0],
+                        visibleCount,
+                        onlyMissingFilter[0],
+                        isAllSelected,
+                        () -> {
+                            if (selectAdapter[0] != null) selectAdapter[0].toggleSelectAll();
+                            updateFooterAction.run();
+                        },
+                        () -> {
+                            onlyMissingFilter[0] = !onlyMissingFilter[0];
+                            refreshTabList.run();
+                        },
+                        () -> {
+                            onlyMissingFilter[0] = false;
+                            refreshTabList.run();
+                        },
+                        () -> {
+                            if (selectAdapter[0] != null) selectAdapter[0].clearSelection();
+                            updateFooterAction.run();
+                        }
+                );
             });
         }
         if (etSearchComic != null) {
@@ -2202,6 +3426,10 @@ public class MainActivity extends AppCompatActivity {
         refreshTabList.run();
         dialog.show();
         triggerScanPeers.run();
+        } catch (Throwable t) {
+            android.util.Log.e("ComicReader", "showLanTransferDialog failed", t);
+            Toast.makeText(this, "打开局域网互传界面出错: " + t.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void openFolderChooser() {
@@ -2265,6 +3493,7 @@ public class MainActivity extends AppCompatActivity {
                 layoutImportProgress.setVisibility(View.VISIBLE);
                 updateImportProgress(status, percent, detail);
             }
+            updateRadarProgress(status, percent);
         });
     }
 
@@ -2274,6 +3503,7 @@ public class MainActivity extends AppCompatActivity {
             if (tvImportPercent != null) tvImportPercent.setText(Math.min(100, Math.max(0, percent)) + "%");
             if (importProgressBar != null) importProgressBar.setProgress(Math.min(100, Math.max(0, percent)));
             if (tvImportDetail != null) tvImportDetail.setText(detail);
+            updateRadarProgress(status, percent);
         });
     }
 
@@ -2282,6 +3512,7 @@ public class MainActivity extends AppCompatActivity {
             if (layoutImportProgress != null) {
                 layoutImportProgress.setVisibility(View.GONE);
             }
+            hideRadarProgress(delayMs);
         }, delayMs);
     }
 

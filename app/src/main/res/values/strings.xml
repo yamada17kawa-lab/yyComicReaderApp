@@ -1,9 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">yy漫画阅读器</string>
-    <string name="import_folder">导入漫画文件夹</string>
+    <string name="app_display_name">YY 漫阅</string>
+    <string name="android_native_edition">Android 原生版</string>
+    <string name="sort">排序</string>
+    <string name="batch">多选</string>
+    <string name="select_all">全选</string>
+    <string name="batch_delete">批量删除</string>
+    <string name="cancel">取消</string>
+    <string name="confirm">确定</string>
+    <string name="close">关闭</string>
+    <string name="lan_transfer">互传</string>
     <string name="search_hint">搜索漫画...</string>
+    <string name="shelf_empty_title">书架暂无漫画藏书</string>
     <string name="empty_tip">点击上方按钮或此处导入漫画目录 (如 /sdcard/Download 或包含漫画子文件夹的目录)</string>
+    <string name="import_directory">导入目录</string>
+    <string name="import_folder">导入漫画文件夹</string>
+    <string name="shelf_stats_format">共 %d 部漫画</string>
+    <string name="shelf_stats_batch_format">共 %1$d 部 · 已选中 %2$d 部</string>
+
+    <!-- 设置相关 -->
+    <string name="settings_title">设置与数据管理</string>
+    <string name="settings_lan_title">📡 局域网互传与同步</string>
+    <string name="settings_lan_desc">与电脑或其它手机实时双向互传、在线阅读</string>
+    <string name="enter_lan">进入互传</string>
+    <string name="theme_title">🎨 界面主题外观</string>
+    <string name="theme_desc">选择系统明暗配色风格</string>
+    <string name="theme_system">🖥️ 跟随系统</string>
+    <string name="theme_dark">🌙 暗色主题</string>
+    <string name="theme_light">☀️ 浅色主题</string>
+    <string name="theme_switched_system">已设置为跟随系统主题</string>
+    <string name="theme_switched_dark">已切换为暗色主题</string>
+    <string name="theme_switched_light">已切换为浅色主题</string>
+    <string name="lang_title">🌐 界面语言 / Language</string>
+    <string name="current_lang_format">当前语言: %s</string>
+    <string name="lang_zh">中文</string>
+    <string name="lang_en">English</string>
+    <string name="lang_ja">日本語</string>
+    <string name="sort_rules">书架排序规则</string>
+    <string name="change">更改</string>
+    <string name="missing_books">失效漫画藏书</string>
+    <string name="view">查看</string>
+    <string name="clear_shelf">清空本地书架</string>
+    <string name="clear">清空</string>
+
+    <!-- 排序选项 -->
+    <string name="sort_name">漫画名称 (A-Z)</string>
+    <string name="sort_time">🕒 导入时间 (最新在前)</string>
+    <string name="sort_reads">🔥 阅读次数最多</string>
+    <string name="sort_recent">⏱️ 最近阅读</string>
+    <string name="sort_pages">📄 切片页数最多</string>
+
+    <!-- 局域网互传 -->
+    <string name="lan_title">局域网互传</string>
+    <string name="lan_waiting_peer">等待设备连接</string>
+    <string name="lan_connected_to">已连: %s</string>
+    <string name="lan_refresh">刷新</string>
+    <string name="lan_network_settings">网络设置</string>
+    <string name="lan_disconnect">🔌 断开</string>
+    <string name="lan_add_blacklist">🚫 黑名单</string>
+    <string name="lan_add_whitelist">⭐ 加入白名单</string>
+    <string name="lan_remove_whitelist">⭐ 移出白名单</string>
+    <string name="lan_pull_tab">从对方下载</string>
+    <string name="lan_push_tab">发送本机漫画</string>
+    <string name="lan_filter_missing">未拥有</string>
+    <string name="lan_empty_no_comics">对方设备书架暂无漫画</string>
+    <string name="lan_empty_search">未找到相关漫画</string>
+
+    <!-- 阅读器 -->
     <string name="pages_suffix">%d P</string>
     <string name="prev_comic">上一部</string>
     <string name="next_comic">下一部</string>

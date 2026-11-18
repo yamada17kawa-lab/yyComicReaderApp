@@ -48,7 +48,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="10dp"
-                    android:text="设置与数据管理"
+                    android:text="@string/settings_title"
                     android:textColor="@color/text_white"
                     android:textSize="17.5sp"
                     android:textStyle="bold" />
@@ -67,6 +67,311 @@
                 android:clickable="true"
                 android:focusable="true" />
         </RelativeLayout>
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fillViewport="true"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+        <!-- 局域网互传核心入口大卡片 (Item 6) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_settings_lan_entry"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/bg_container"
+            app:strokeColor="@color/primary"
+            app:strokeWidth="1.2dp"
+            app:cardElevation="0dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="13dp">
+
+                <ImageView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_wifi_vector"
+                    app:tint="@color/primary_light"
+                    android:layout_marginEnd="10dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_lan_title"
+                        android:textColor="@color/text_white"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/settings_lan_desc"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_settings_goto_lan"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/enter_lan"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:backgroundTint="@color/primary"
+                    android:textColor="@color/text_white"
+                    app:elevation="0dp"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 界面主题外观切换卡片 (Item 8) -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/bg_container"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="13dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/theme_title"
+                    android:textColor="@color/text_white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/theme_desc"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11.5sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_theme_system"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:minWidth="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:text="@string/theme_system"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="@color/bg_surface"
+                        android:textColor="@color/text_white"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_theme_dark"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:minWidth="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:text="@string/theme_dark"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="@color/primary"
+                        android:textColor="@color/text_white"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_theme_light"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:minWidth="0dp"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:text="@string/theme_light"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="@color/bg_surface"
+                        android:textColor="@color/text_white"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 语言切换卡片 (Item 7) -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/bg_container"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="13dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/lang_title"
+                    android:textColor="@color/text_white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_settings_current_lang"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="当前语言: 简体中文 (Chinese)"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11.5sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lang_zh"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="4dp"
+                        android:paddingTop="5dp"
+                        android:paddingBottom="5dp"
+                        android:text="@string/lang_zh"
+                        android:textSize="11.5sp"
+                        android:backgroundTint="@color/primary"
+                        android:textColor="@color/text_white"
+                        app:elevation="0dp"
+                        app:cornerRadius="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lang_en"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="4dp"
+                        android:paddingTop="5dp"
+                        android:paddingBottom="5dp"
+                        android:text="@string/lang_en"
+                        android:textSize="11.5sp"
+                        android:backgroundTint="@color/bg_surface" app:strokeColor="@color/border_color" app:strokeWidth="1dp"
+                        android:textColor="@color/text_white"
+                        app:elevation="0dp"
+                        app:cornerRadius="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lang_ja"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:layout_weight="1"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="4dp"
+                        android:paddingTop="5dp"
+                        android:paddingBottom="5dp"
+                        android:text="@string/lang_ja"
+                        android:textSize="11.5sp"
+                        android:backgroundTint="@color/bg_surface" app:strokeColor="@color/border_color" app:strokeWidth="1dp"
+                        android:textColor="@color/text_white"
+                        app:elevation="0dp"
+                        app:cornerRadius="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- 1. 丢失/未显示漫画管理卡片 -->
         <com.google.android.material.card.MaterialCardView
@@ -149,7 +454,8 @@
                     android:textAllCaps="false"
                     android:backgroundTint="@color/primary"
                     android:textColor="@color/text_white"
-                    app:cornerRadius="8dp" />
+                    app:cornerRadius="8dp"
+                    app:elevation="0dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -203,7 +509,8 @@
                         android:textAllCaps="false"
                         android:backgroundTint="@color/primary"
                         android:textColor="@color/text_white"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </RelativeLayout>
 
                 <TextView
@@ -239,9 +546,10 @@
                         android:text="更改接收目录"
                         android:textSize="11.5sp"
                         android:textAllCaps="false"
-                        android:backgroundTint="#2E3348"
+                        android:backgroundTint="@color/bg_surface" app:strokeColor="@color/border_color" app:strokeWidth="1dp"
                         android:textColor="@color/text_white"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_settings_reset_transfer_dir"
@@ -258,9 +566,131 @@
                         android:text="恢复默认"
                         android:textSize="11.5sp"
                         android:textAllCaps="false"
-                        android:backgroundTint="#2E3348"
+                        android:backgroundTint="@color/bg_surface" app:strokeColor="@color/border_color" app:strokeWidth="1dp"
                         android:textColor="@color/text_muted"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@color/border_color" />
+
+                <!-- 互传安全与连接防护 -->
+                <!-- 行1：密码连接开关与标题 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🔒 开启密码连接限制"
+                        android:textColor="@color/text_white"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_settings_lan_require_pwd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_settings_lan_pwd_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="未启用（对方连接需本机手动点击确认）"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11.5sp" />
+
+                <!-- 行2：操作按钮 平分宽度，绝不拥挤 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lan_edit_pwd"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="0dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="修改密码"
+                        android:textSize="11.5sp"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_surface"
+                        android:textColor="@color/text_white"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lan_whitelist"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="0dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="⭐ 信任白名单"
+                        android:textSize="11.5sp"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_surface"
+                        android:textColor="#FBBF24"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_settings_lan_blacklist"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="0dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="🚫 黑名单"
+                        android:textSize="11.5sp"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_surface"
+                        android:textColor="#F87171"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -326,9 +756,10 @@
                         android:text="切换排序"
                         android:textSize="12sp"
                         android:textAllCaps="false"
-                        android:backgroundTint="#2E3348"
+                        android:backgroundTint="@color/bg_surface" app:strokeColor="@color/border_color" app:strokeWidth="1dp"
                         android:textColor="@color/text_white"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
 
                 <View
@@ -365,15 +796,81 @@
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         android:layout_marginStart="8dp"
-                        android:text="重置书架"
+                        android:text="查看清理"
                         android:textSize="11.5sp"
                         android:textAllCaps="false"
-                        android:backgroundTint="@color/danger_container"
-                        android:textColor="#FCA5A5"
-                        app:cornerRadius="8dp" />
+                        android:backgroundTint="@color/bg_surface"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        android:textColor="@color/danger_red"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- 关于与软件版本信息卡片 (Material Design 3) -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="20dp"
+            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="ℹ️ 软件版本与信息"
+                        android:textColor="@color/text_white"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_settings_app_version_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/progress_badge_bg"
+                        android:backgroundTint="#266366F1"
+                        android:paddingStart="9dp"
+                        android:paddingEnd="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:text="v1.0.9 (Build 10)"
+                        android:textColor="#A5B4FC"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_settings_app_version_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="YY漫画 · Android 原生版 · 局域网极速互传"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
     </LinearLayout>
 

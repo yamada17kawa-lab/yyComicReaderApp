@@ -133,8 +133,11 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
         // 默认第一张图作为封面
         ImageLoader.getInstance().displayImage(context, item.getCoverPath(), holder.ivCover, 400, 600);
 
-        // 显示历史已读进度
-        int savedPage = sp.getInt("progress_" + item.getTitle(), 0);
+        // 显示历史已读进度（在线书架模式优先显示电脑端同步进度）
+        int savedPage = isOnlineShelfMode ? item.getLastReadPage() : (sp != null ? sp.getInt("progress_" + item.getTitle(), 0) : 0);
+        if (savedPage <= 1 && sp != null) {
+            savedPage = Math.max(savedPage, sp.getInt("progress_" + item.getTitle(), 0));
+        }
         if (savedPage > 1) {
             holder.tvProgress.setVisibility(View.VISIBLE);
             holder.tvProgress.setText("读至 P." + savedPage);
@@ -167,9 +170,9 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
 
         if (isOnlineShelfMode) {
             holder.cbSelect.setVisibility(View.GONE);
-            holder.btnRemove.setVisibility(View.GONE);
-            if (holder.btnCover != null) holder.btnCover.setVisibility(View.GONE);
-            if (holder.btnRename != null) holder.btnRename.setVisibility(View.GONE);
+            holder.btnRemove.setVisibility(View.VISIBLE);
+            if (holder.btnCover != null) holder.btnCover.setVisibility(View.VISIBLE);
+            if (holder.btnRename != null) holder.btnRename.setVisibility(View.VISIBLE);
             holder.cardView.setCardBackgroundColor(defaultCardBg);
         } else if (isBatchMode) {
             holder.cbSelect.setVisibility(View.VISIBLE);
@@ -210,18 +213,36 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
             }
         });
 
-        // 移除按钮点击与长按
-        holder.btnRemove.setOnClickListener(v -> {
-            if (removeListener != null) {
-                removeListener.onRemoveClick(holder.getBindingAdapterPosition());
-            }
-        });
+        // 重置并绑定三点更多按钮及其状态
+        holder.isMenuExpanded = false;
+        if (holder.btnCardMore != null) {
+            holder.btnCardMore.setRotation(0f);
+            holder.btnCardMore.setVisibility(isBatchMode ? View.GONE : View.VISIBLE);
+            holder.btnCardMore.setOnClickListener(v -> toggleCardMenu(holder));
+        }
+        if (holder.layoutCardActions != null) {
+            holder.layoutCardActions.setVisibility(View.GONE);
+            holder.layoutCardActions.setAlpha(0f);
+        }
+
+        // 移除按钮点击
+        if (holder.btnRemove != null) {
+            holder.btnRemove.setOnClickListener(v -> {
+                collapseCardMenu(holder);
+                int pos = holder.getBindingAdapterPosition();
+                if (pos >= 0 && pos < list.size() && removeListener != null) {
+                    removeListener.onRemoveClick(pos);
+                }
+            });
+        }
 
         // 更换自定义封面按钮点击
         if (holder.btnCover != null) {
             holder.btnCover.setOnClickListener(v -> {
-                if (coverListener != null) {
-                    coverListener.onCoverClick(holder.getBindingAdapterPosition());
+                collapseCardMenu(holder);
+                int pos = holder.getBindingAdapterPosition();
+                if (pos >= 0 && pos < list.size() && coverListener != null) {
+                    coverListener.onCoverClick(pos);
                 }
             });
         }
@@ -229,8 +250,10 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
         // 修改漫画文件名按钮点击
         if (holder.btnRename != null) {
             holder.btnRename.setOnClickListener(v -> {
-                if (renameListener != null) {
-                    renameListener.onRenameClick(holder.getBindingAdapterPosition());
+                collapseCardMenu(holder);
+                int pos = holder.getBindingAdapterPosition();
+                if (pos >= 0 && pos < list.size() && renameListener != null) {
+                    renameListener.onRenameClick(pos);
                 }
             });
         }
@@ -264,10 +287,13 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
         TextView tvPageCount;
         TextView tvProgress;
         TextView tvReadCount;
+        ImageView btnCardMore;
+        View layoutCardActions;
         View btnRemove;
         View btnCover;
         View btnRename;
         CheckBox cbSelect;
+        boolean isMenuExpanded = false;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -277,10 +303,78 @@ public class ComicShelfAdapter extends RecyclerView.Adapter<ComicShelfAdapter.Vi
             tvPageCount = itemView.findViewById(R.id.tv_page_count);
             tvProgress = itemView.findViewById(R.id.tv_progress);
             tvReadCount = itemView.findViewById(R.id.tv_read_count);
+            btnCardMore = itemView.findViewById(R.id.btn_card_more);
+            layoutCardActions = itemView.findViewById(R.id.layout_card_actions);
             btnRemove = itemView.findViewById(R.id.btn_remove);
             btnCover = itemView.findViewById(R.id.btn_cover);
             btnRename = itemView.findViewById(R.id.btn_rename);
             cbSelect = itemView.findViewById(R.id.cb_card_select);
         }
     }
+
+    // 三点更多按钮的顺时针急刹回弹旋转与向下甩出操作菜单动画
+    private void toggleCardMenu(ViewHolder holder) {
+        if (holder == null || holder.btnCardMore == null || holder.layoutCardActions == null) return;
+        if (!holder.isMenuExpanded) {
+            expandCardMenu(holder);
+        } else {
+            collapseCardMenu(holder);
+        }
+    }
+
+    private void expandCardMenu(ViewHolder holder) {
+        if (holder == null || holder.btnCardMore == null || holder.layoutCardActions == null) return;
+        holder.isMenuExpanded = true;
+
+        // 1. 三点图标顺时针快速旋转半圈 (180度)，超过半圈后急刹惯性回弹 (OvershootInterpolator 2.6f)
+        holder.btnCardMore.animate()
+                .rotation(180f)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(2.6f))
+                .setDuration(360)
+                .start();
+
+        // 2. 操作菜单向下甩出，带惯性回弹动效 (OvershootInterpolator 2.2f)
+        holder.layoutCardActions.setVisibility(View.VISIBLE);
+        holder.layoutCardActions.setAlpha(0f);
+        holder.layoutCardActions.setTranslationY(-28f);
+        holder.layoutCardActions.setScaleX(0.5f);
+        holder.layoutCardActions.setScaleY(0.5f);
+        holder.layoutCardActions.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(2.2f))
+                .setDuration(360)
+                .start();
+    }
+
+    private void collapseCardMenu(ViewHolder holder) {
+        if (holder == null || holder.btnCardMore == null || holder.layoutCardActions == null) return;
+        if (!holder.isMenuExpanded && holder.layoutCardActions.getVisibility() == View.GONE) return;
+        holder.isMenuExpanded = false;
+
+        // 逆时针收起旋转
+        holder.btnCardMore.animate()
+                .rotation(0f)
+                .setInterpolator(new android.view.animation.AnticipateInterpolator(1.8f))
+                .setDuration(280)
+                .start();
+
+        // 操作菜单向上收起淡出
+        holder.layoutCardActions.animate()
+                .alpha(0f)
+                .translationY(-20f)
+                .scaleX(0.5f)
+                .scaleY(0.5f)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator())
+                .setDuration(220)
+                .withEndAction(() -> {
+                    if (!holder.isMenuExpanded) {
+                        holder.layoutCardActions.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+    }
+
 }

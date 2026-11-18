@@ -54,9 +54,9 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_margin="6dp"
-            android:background="@drawable/badge_bg"
+            android:background="@drawable/page_count_badge_bg"
             android:text="第 1 页"
-            android:textColor="@color/text_white"
+            android:textColor="#FFFFFF"
             android:textSize="10sp"
             android:textStyle="bold" />
 

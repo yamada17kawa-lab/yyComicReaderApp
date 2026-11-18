@@ -68,51 +68,83 @@
                 android:layout_gravity="top|start"
                 android:layout_margin="10dp"
                 android:background="@drawable/progress_badge_bg"
-                android:textColor="@color/text_white"
+                android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
-            <!-- 右上角：修改文件名按钮 (矢量图标) -->
+            <!-- 右上角：三点更多操作按钮 (带惯性旋转动画) -->
             <ImageView
-                android:id="@+id/btn_rename"
+                android:id="@+id/btn_card_more"
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:layout_gravity="top|end"
                 android:layout_marginTop="8dp"
-                android:layout_marginEnd="80dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_edit_vector"
-                app:tint="#E2E8F0"
-                android:background="@drawable/remove_btn_bg"
-                android:contentDescription="修改漫画文件名" />
+                android:layout_marginEnd="8dp"
+                android:padding="5dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:src="@drawable/ic_more_vert_vector"
+                app:tint="@color/text_white"
+                android:background="@drawable/btn_card_more_bg"
+                android:elevation="6dp"
+                android:contentDescription="更多操作" />
 
-            <!-- 右上角：自定义封面按钮 (矢量图标，无Emoji) -->
-            <ImageView
-                android:id="@+id/btn_cover"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+            <!-- 右上角向下甩出的操作菜单容器 -->
+            <LinearLayout
+                android:id="@+id/layout_card_actions"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="top|end"
-                android:layout_marginTop="8dp"
-                android:layout_marginEnd="44dp"
-                android:padding="6dp"
-                android:src="@drawable/ic_image_cover_vector"
-                app:tint="#E2E8F0"
-                android:background="@drawable/remove_btn_bg"
-                android:contentDescription="设置封面" />
+                android:layout_marginTop="42dp"
+                android:layout_marginEnd="8dp"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:background="@drawable/card_action_menu_bg"
+                android:elevation="8dp"
+                android:visibility="gone">
 
-            <!-- 右上角：删除漫画按钮 (矢量图标) -->
-            <ImageView
-                android:id="@+id/btn_remove"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="top|end"
-                android:layout_margin="8dp"
-                android:padding="7dp"
-                android:src="@drawable/ic_close_vector"
-                app:tint="#FCA5A5"
-                android:background="@drawable/remove_btn_bg"
-                android:contentDescription="删除漫画" />
+                <!-- 1. 修改文件名 -->
+                <ImageView
+                    android:id="@+id/btn_rename"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginBottom="6dp"
+                    android:padding="5.5dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:src="@drawable/ic_edit_vector"
+                    app:tint="@color/text_white"
+                    android:background="@drawable/remove_btn_bg"
+                    android:contentDescription="修改漫画文件名" />
+
+                <!-- 2. 设置封面 -->
+                <ImageView
+                    android:id="@+id/btn_cover"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginBottom="6dp"
+                    android:padding="5.5dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:src="@drawable/ic_image_cover_vector"
+                    app:tint="@color/text_white"
+                    android:background="@drawable/remove_btn_bg"
+                    android:contentDescription="设置封面" />
+
+                <!-- 3. 删除漫画 -->
+                <ImageView
+                    android:id="@+id/btn_remove"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:padding="6dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:src="@drawable/ic_close_vector"
+                    app:tint="@color/danger_red"
+                    android:background="@drawable/remove_btn_bg"
+                    android:contentDescription="删除漫画" />
+            </LinearLayout>
 
             <!-- 左下角：阅读次数徽章 -->
             <TextView
@@ -122,7 +154,7 @@
                 android:layout_gravity="bottom|start"
                 android:layout_margin="10dp"
                 android:background="@drawable/read_count_badge_bg"
-                android:textColor="@color/text_white"
+                android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -134,8 +166,11 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
                 android:layout_margin="10dp"
-                android:background="@drawable/badge_bg"
-                android:textColor="#E2E8F0"
+                android:background="@drawable/page_count_badge_bg"
+                android:drawableStart="@drawable/ic_pages_badge_vector"
+                android:drawablePadding="3.5dp"
+                android:gravity="center"
+                android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
 

@@ -109,7 +109,8 @@
                 app:iconTint="@color/text_secondary"
                 app:strokeColor="@color/border_color"
                 app:strokeWidth="1dp"
-                app:cornerRadius="8dp" />
+                app:cornerRadius="8dp"
+                app:elevation="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_lan_toggle_options"
@@ -123,7 +124,7 @@
                 android:paddingEnd="10dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:text="设置"
+                android:text="网络设置"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:textAllCaps="false"
@@ -135,7 +136,8 @@
                 app:iconTint="@color/text_secondary"
                 app:strokeColor="@color/border_color"
                 app:strokeWidth="1dp"
-                app:cornerRadius="8dp" />
+                app:cornerRadius="8dp"
+                app:elevation="0dp" />
         </LinearLayout>
     </RelativeLayout>
 
@@ -239,7 +241,10 @@
                         android:textAllCaps="false"
                         android:backgroundTint="@color/bg_container"
                         android:textColor="@color/primary_light"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
                         app:cornerRadius="8dp"
+                        app:elevation="0dp"
                         android:layout_marginEnd="6dp" />
 
                     <com.google.android.material.button.MaterialButton
@@ -259,7 +264,10 @@
                         android:textAllCaps="false"
                         android:backgroundTint="@color/bg_container"
                         android:textColor="@color/text_muted"
-                        app:cornerRadius="8dp" />
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
 
                 <View
@@ -309,7 +317,10 @@
                         android:textAllCaps="false"
                         android:backgroundTint="@color/bg_container"
                         android:textColor="@color/text_white"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
                         app:cornerRadius="8dp"
+                        app:elevation="0dp"
                         android:layout_marginEnd="6dp" />
 
                     <com.google.android.material.button.MaterialButton
@@ -330,7 +341,154 @@
                         android:textAllCaps="false"
                         android:backgroundTint="@color/primary"
                         android:textColor="@color/text_white"
-                        app:cornerRadius="8dp" />
+                        app:strokeColor="@color/primary"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 连接安全权限：密码连接保护与信任白名单管理 (常驻卡片，与 Windows 端完全一致，无需点击设置展开) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_lan_security"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/bg_surface"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
+
+                <!-- 行1：密码连接开关与标题 + 紧凑修改密码按钮 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🔒 开启密码连接限制"
+                        android:textColor="@color/text_white"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_lan_edit_pwd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:layout_marginEnd="8dp"
+                        android:text="修改密码"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_container"
+                        android:textColor="@color/primary_light"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="6dp"
+                        app:elevation="0dp"
+                        android:visibility="gone" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_lan_require_pwd"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_lan_pwd_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="未启用（对方连接需本机手动点击确认）"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11.5sp" />
+
+                <!-- 行2：操作按钮 信任白名单与黑名单管理 两键平分，宽敞舒适绝不挤压或遮挡 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_lan_whitelist"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="⭐ 信任白名单 (0)"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_container"
+                        android:textColor="#FBBF24"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_lan_blacklist"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="🚫 黑名单管理 (0)"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textAllCaps="false"
+                        android:backgroundTint="@color/bg_container"
+                        android:textColor="#F87171"
+                        app:strokeColor="@color/border_color"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp"
+                        app:elevation="0dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -378,6 +536,117 @@
                     android:singleLine="true"
                     android:ellipsize="end" />
 
+                <!-- 已连接设备状态与操作栏 (两行布局，宽敞清晰绝不挤压) -->
+                <LinearLayout
+                    android:id="@+id/layout_lan_connected_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="6dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="2dp"
+                    android:visibility="gone">
+
+                    <!-- 第一行：完整设备名 + 右侧显目断开按钮 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="6dp">
+
+                        <TextView
+                            android:id="@+id/tv_lan_connected_info"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🟢 已连接设备"
+                            android:textColor="#10B981"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_lan_disconnect"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:layout_marginStart="8dp"
+                            android:text="🔌 断开"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="false"
+                            android:backgroundTint="@color/danger_container"
+                            android:textColor="@color/danger_red"
+                            app:strokeColor="@color/danger_red"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="8dp"
+                            app:elevation="0dp" />
+                    </LinearLayout>
+
+                    <!-- 第二行：加入白名单与黑名单按钮，平分宽度 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_lan_toggle_whitelist"
+                            android:layout_width="0dp"
+                            android:layout_height="32dp"
+                            android:layout_weight="1"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:padding="0dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:insetLeft="0dp"
+                            android:insetRight="0dp"
+                            android:text="⭐ 加入白名单"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="false"
+                            android:backgroundTint="@color/bg_container"
+                            android:textColor="#FBBF24"
+                            app:strokeColor="#FBBF24"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="8dp"
+                            app:elevation="0dp"
+                            android:layout_marginEnd="6dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_lan_add_blacklist"
+                            android:layout_width="0dp"
+                            android:layout_height="32dp"
+                            android:layout_weight="1"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:padding="0dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:insetLeft="0dp"
+                            android:insetRight="0dp"
+                            android:text="🚫 黑名单"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="false"
+                            android:backgroundTint="@color/bg_container"
+                            android:textColor="#F87171"
+                            app:strokeColor="#F87171"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="8dp"
+                            app:elevation="0dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <!-- 独立通栏：一键进入电脑在线书架大按钮 (连接成功后展示，气派且不与设备芯片挤压) -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_lan_browse_online_shelf"
@@ -393,14 +662,15 @@
                     android:textSize="12.5sp"
                     android:textStyle="bold"
                     android:textAllCaps="false"
-                    android:backgroundTint="#1E3A8A"
-                    android:textColor="#E0F2FE"
+                    android:backgroundTint="@color/primary"
+                    android:textColor="#FFFFFF"
                     app:icon="@drawable/ic_laptop_vector"
                     app:iconSize="16dp"
-                    app:iconTint="#93C5FD"
-                    app:strokeColor="#3B82F6"
+                    app:iconTint="#FFFFFF"
+                    app:strokeColor="@color/primary"
                     app:strokeWidth="1dp"
                     app:cornerRadius="9dp"
+                    app:elevation="0dp"
                     android:visibility="gone" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -412,7 +682,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             app:cardCornerRadius="14dp"
-            app:cardBackgroundColor="#1B1E30"
+            app:cardBackgroundColor="@color/bg_surface"
             app:strokeColor="@color/primary"
             app:strokeWidth="1dp"
             app:cardElevation="0dp"
@@ -507,6 +777,7 @@
                 app:iconPadding="6dp"
                 app:iconTint="@color/text_white"
                 app:cornerRadius="9dp"
+                app:elevation="0dp"
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -532,7 +803,8 @@
                 app:iconSize="15dp"
                 app:iconPadding="6dp"
                 app:iconTint="@color/text_secondary"
-                app:cornerRadius="9dp" />
+                app:cornerRadius="9dp"
+                app:elevation="0dp" />
         </LinearLayout>
 
         <!-- 6. 搜索栏与一键过滤工具行 -->
@@ -591,48 +863,29 @@
                     android:focusable="true" />
             </RelativeLayout>
 
-            <!-- 一键过滤未拥有按钮 -->
+            <!-- 综合筛选与批量操作按钮 (合成一个按钮，彻底告别拥挤与阴影) -->
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_lan_filter_missing"
+                android:id="@+id/btn_lan_filter_menu"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:text="未拥有 (0)"
-                android:textSize="11.5sp"
+                android:text="筛选 / 操作 ▾"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:textAllCaps="false"
                 android:backgroundTint="@color/bg_container"
                 android:textColor="@color/text_secondary"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp"
                 app:cornerRadius="8dp"
-                android:layout_marginEnd="6dp" />
-
-            <!-- 全选当前按钮 -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_lan_select_all"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:text="全选"
-                android:textSize="11.5sp"
-                android:textStyle="bold"
-                android:textAllCaps="false"
-                android:backgroundTint="@color/bg_container"
-                android:textColor="@color/text_secondary"
-                app:cornerRadius="8dp" />
+                app:elevation="0dp" />
         </LinearLayout>
 
         <!-- 7. 自适应漫画选择列表容器 -->
@@ -641,7 +894,7 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:background="@drawable/search_bg"
-            android:backgroundTint="#14161F"
+            android:backgroundTint="@color/bg_container"
             android:padding="6dp">
 
             <androidx.recyclerview.widget.RecyclerView
@@ -686,6 +939,7 @@
             android:insetTop="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="12dp"
+            app:elevation="0dp"
             android:enabled="false" />
     </LinearLayout>
 

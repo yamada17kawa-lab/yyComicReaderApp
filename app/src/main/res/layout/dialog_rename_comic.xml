@@ -5,10 +5,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="16dp"
-    app:cardBackgroundColor="#1A1D26"
+    app:cardBackgroundColor="@color/bg_surface"
     app:cardCornerRadius="20dp"
     app:cardElevation="12dp"
-    app:strokeColor="#2A2F42"
+    app:strokeColor="@color/border_color"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -36,7 +36,7 @@
                 android:layout_marginStart="10dp"
                 android:layout_weight="1"
                 android:text="修改漫画文件名"
-                android:textColor="#F8FAFC"
+                android:textColor="@color/text_white"
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
@@ -72,8 +72,8 @@
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:singleLine="true"
-            android:textColor="#F8FAFC"
-            android:textColorHint="#64748B"
+            android:textColor="@color/text_white"
+            android:textColorHint="@color/text_subtle"
             android:textSize="14sp" />
 
         <TextView
@@ -100,10 +100,10 @@
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:text="取消"
-                android:textColor="#CBD5E1"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 app:cornerRadius="10dp"
-                app:strokeColor="#2A2F42"
+                app:strokeColor="@color/border_color"
                 app:strokeWidth="1dp" />
 
             <com.google.android.material.button.MaterialButton

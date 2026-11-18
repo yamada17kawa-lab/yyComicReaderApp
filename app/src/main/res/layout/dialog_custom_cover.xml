@@ -174,7 +174,9 @@
                             android:text="恢复默认"
                             android:textSize="11.5sp"
                             android:textAllCaps="false"
-                            android:backgroundTint="#2E3348"
+                            android:backgroundTint="@color/bg_surface"
+                            app:strokeColor="@color/border_color"
+                            app:strokeWidth="1dp"
                             android:textColor="@color/text_secondary"
                             app:cornerRadius="8dp" />
                     </LinearLayout>
@@ -216,7 +218,7 @@
             android:layout_width="match_parent"
             android:layout_height="340dp"
             android:background="@drawable/search_bg"
-            android:backgroundTint="#13151E"
+            android:backgroundTint="@color/bg_container"
             android:padding="6dp"
             android:clipToPadding="false"
             android:scrollbars="vertical" />

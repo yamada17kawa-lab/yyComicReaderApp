@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YYマンガリーダー</string>
+    <string name="app_display_name">YY 漫読</string>
+    <string name="android_native_edition">Android ネイティブ版</string>
+    <string name="sort">並び替え</string>
+    <string name="batch">選択</string>
+    <string name="select_all">すべて選択</string>
+    <string name="batch_delete">一括削除</string>
+    <string name="cancel">キャンセル</string>
+    <string name="confirm">確定</string>
+    <string name="close">閉じる</string>
+    <string name="lan_transfer">互送</string>
+    <string name="search_hint">漫画を検索...</string>
+    <string name="shelf_empty_title">本棚に作品がありません</string>
+    <string name="empty_tip">上のボタンまたはここをタップして漫画フォルダを読み込みます (例: /sdcard/Download)</string>
+    <string name="import_directory">フォルダ読込</string>
+    <string name="import_folder">フォルダを導入</string>
+    <string name="shelf_stats_format">全 %d 作品</string>
+    <string name="shelf_stats_batch_format">全 %1$d 作品 · %2$d 件選択中</string>
+
+    <!-- Settings -->
+    <string name="settings_title">設定とデータ管理</string>
+    <string name="settings_lan_title">📡 LAN 転送と同期</string>
+    <string name="settings_lan_desc">PCや他のスマホとリアルタイムで双方向転送・閲覧</string>
+    <string name="enter_lan">LAN 転送を開く</string>
+    <string name="theme_title">🎨 テーマの外観</string>
+    <string name="theme_desc">明暗のテーマスタイルを選択</string>
+    <string name="theme_system">🖥️ システムに従う</string>
+    <string name="theme_dark">🌙 ダークテーマ</string>
+    <string name="theme_light">☀️ ライトテーマ</string>
+    <string name="theme_switched_system">システムテーマに設定しました</string>
+    <string name="theme_switched_dark">ダークテーマに切り替えました</string>
+    <string name="theme_switched_light">ライトテーマに切り替えました</string>
+    <string name="lang_title">🌐 表示言語 / Language</string>
+    <string name="current_lang_format">現在の言語: %s</string>
+    <string name="lang_zh">中文 (中国語)</string>
+    <string name="lang_en">English (英語)</string>
+    <string name="lang_ja">日本語</string>
+    <string name="sort_rules">並び替え設定</string>
+    <string name="change">変更</string>
+    <string name="missing_books">未検出の漫画</string>
+    <string name="view">確認</string>
+    <string name="clear_shelf">本棚を消去</string>
+    <string name="clear">消去</string>
+
+    <!-- Sort Options -->
+    <string name="sort_name">タイトル順 (A-Z)</string>
+    <string name="sort_time">🕒 インポート順 (新しい順)</string>
+    <string name="sort_reads">🔥 閲覧数順</string>
+    <string name="sort_recent">⏱️ 最近読んだ順</string>
+    <string name="sort_pages">📄 ページ数順</string>
+
+    <!-- LAN Transfer -->
+    <string name="lan_title">LAN 転送</string>
+    <string name="lan_waiting_peer">接続待機中</string>
+    <string name="lan_connected_to">接続中: %s</string>
+    <string name="lan_refresh">更新</string>
+    <string name="lan_network_settings">ネットワーク設定</string>
+    <string name="lan_disconnect">🔌 切断</string>
+    <string name="lan_add_blacklist">🚫 ブロック</string>
+    <string name="lan_add_whitelist">⭐ ホワイトリスト</string>
+    <string name="lan_remove_whitelist">⭐ ホワイトリスト解除</string>
+    <string name="lan_pull_tab">相手からダウンロード</string>
+    <string name="lan_push_tab">相手に送信</string>
+    <string name="lan_filter_missing">未所持のみ</string>
+    <string name="lan_empty_no_comics">相手の端末に漫画がありません</string>
+    <string name="lan_empty_search">該当する漫画は見つかりませんでした</string>
+
+    <!-- Reader -->
+    <string name="pages_suffix">%d ページ</string>
+    <string name="prev_comic">前の作品</string>
+    <string name="next_comic">次の作品</string>
+</resources>

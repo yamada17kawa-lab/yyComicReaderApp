@@ -49,11 +49,59 @@ public class LanTransferManager {
 
     public static class PeerInfo {
         public String app = "YYComicReader";
+        public String deviceId = "";
         public String deviceName = "";
         public String platform = "";
         public String ip = "";
         public int port = DEFAULT_HTTP_PORT;
         public int comicCount = 0;
+        public boolean requirePassword = false;
+        public int versionCode = 0;
+        public String versionName = "";
+        public String sessionToken = "";
+    }
+
+    public static class WhitelistEntry {
+        public String deviceId = "";
+        public String deviceName = "";
+        public String platform = "";
+        public long addedTime = 0;
+    }
+
+    public static class BlacklistEntry {
+        public String deviceId = "";
+        public String deviceName = "";
+        public String platform = "";
+        public String ip = "";
+        public long addedTime = 0;
+    }
+
+    public static class PairRequestState {
+        public String reqId = "";
+        public String fromId = "";
+        public String fromName = "";
+        public String fromPlatform = "";
+        public String fromIp = "";
+        public int fromPort = DEFAULT_HTTP_PORT;
+        public String status = "pending"; // "pending", "accepted", "rejected", "timeout"
+        public long createdTime = 0;
+        public String sessionToken = "";
+
+        public boolean isExpired() {
+            return (System.currentTimeMillis() - createdTime) > 30000;
+        }
+    }
+
+    public static class ConnectResult {
+        public boolean ok = false;
+        public String status = ""; // "accepted", "need_password", "wrong_password", "need_confirm", "rejected", "timeout", "error", "cancelled"
+        public String message = "";
+        public String sessionToken = "";
+        public PeerInfo peer = null;
+    }
+
+    public interface OnPairRequestListener {
+        void onPairRequestReceived(PairRequestState request);
     }
 
     public static class RemoteComic {
@@ -107,8 +155,21 @@ public class LanTransferManager {
         void onPeerConnected(PeerInfo peer);
     }
 
+    public interface OnPeerDisconnectedListener {
+        void onPeerDisconnected(String fromId, String fromName, String fromIp);
+    }
+
     public interface OnBatchTransferCompleteListener {
         void onBatchComplete(String mode, String peerName, int transferredCount, int skippedCount);
+    }
+
+    public interface OnRemoteOperationListener {
+        boolean onRenameComic(String id, String title, String newTitle);
+        boolean onSetComicCoverPage(String id, int pageIndex);
+        boolean onResetComicCover(String id);
+        boolean onSetComicCoverFile(String id, byte[] imageBytes, String ext);
+        boolean onDeleteComic(String id, String title);
+        void onRecordRead(String id, String title, int page, boolean inc);
     }
 
     private final Context context;
@@ -116,7 +177,335 @@ public class LanTransferManager {
     private final OnComicReceivedListener onComicReceivedListener;
     private final OnTransferProgressListener onTransferProgressListener;
     private final OnPeerConnectedListener onPeerConnectedListener;
+    private OnPeerDisconnectedListener onPeerDisconnectedListener;
+    public void setOnPeerDisconnectedListener(OnPeerDisconnectedListener listener) {
+        this.onPeerDisconnectedListener = listener;
+    }
     private final OnBatchTransferCompleteListener onBatchTransferCompleteListener;
+    private OnRemoteOperationListener onRemoteOperationListener;
+
+    public void setOnRemoteOperationListener(OnRemoteOperationListener listener) {
+        this.onRemoteOperationListener = listener;
+    }
+
+    public interface OnUpdateReceivedListener {
+        void onUpdateReceived(ApkUpdateManager.UpdateInfo info);
+    }
+    private OnUpdateReceivedListener onUpdateReceivedListener;
+    public void setOnUpdateReceivedListener(OnUpdateReceivedListener listener) {
+        this.onUpdateReceivedListener = listener;
+    }
+    private OnPairRequestListener onPairRequestListener;
+    private final Map<String, PairRequestState> pairRequests = new ConcurrentHashMap<>();
+
+    public void setOnPairRequestListener(OnPairRequestListener listener) {
+        this.onPairRequestListener = listener;
+    }
+
+    private volatile String currentSessionToken = null;
+    private volatile String currentConnectedPeerId = null;
+
+    public String getCurrentSessionToken() {
+        return currentSessionToken;
+    }
+
+    public boolean isRequestAuthorized(String fromId, String remoteIp, String token) {
+        if (fromId != null && !fromId.isEmpty() && isDeviceWhitelisted(fromId)) {
+            return true;
+        }
+        if (currentSessionToken != null && !currentSessionToken.isEmpty()
+                && token != null && currentSessionToken.equals(token)) {
+            return true;
+        }
+        if (token != null && !token.isEmpty()) {
+            for (PairRequestState pr : pairRequests.values()) {
+                if (!pr.isExpired() && token.equals(pr.sessionToken)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public String getDeviceId() {
+        android.content.SharedPreferences sp = context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE);
+        String id = sp.getString("device_id", null);
+        if (id == null || id.isEmpty()) {
+            id = java.util.UUID.randomUUID().toString().replace("-", "");
+            sp.edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+
+    public boolean isRequirePassword() {
+        return context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .getBoolean("require_password", false);
+    }
+
+    public void setRequirePassword(boolean require) {
+        context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .edit().putBoolean("require_password", require).apply();
+    }
+
+    public String getConnectionPassword() {
+        return context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .getString("connection_password", "");
+    }
+
+    public void setConnectionPassword(String password) {
+        context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .edit().putString("connection_password", password != null ? password : "").apply();
+    }
+
+    public boolean hasConnectionPassword() {
+        String pwd = getConnectionPassword();
+        return pwd != null && !pwd.trim().isEmpty();
+    }
+
+    public boolean isSelfIp(String ip) {
+        if (ip == null || ip.trim().isEmpty()) return false;
+        String clean = ip.trim();
+        if (clean.toLowerCase().startsWith("http://")) clean = clean.substring(7);
+        if (clean.toLowerCase().startsWith("https://")) clean = clean.substring(8);
+        if (clean.contains(":")) clean = clean.split(":")[0];
+        if (clean.contains("/")) clean = clean.replace("/", "");
+        if ("127.0.0.1".equals(clean) || "localhost".equalsIgnoreCase(clean) || "0.0.0.0".equals(clean) || "::1".equals(clean)) {
+            return true;
+        }
+        List<String> localIps = getLocalLanIps();
+        for (String myIp : localIps) {
+            if (myIp != null && myIp.trim().equalsIgnoreCase(clean)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isSelf(PeerInfo p) {
+        if (p == null) return false;
+        String myId = getDeviceId();
+        if (myId != null && !myId.isEmpty() && myId.equalsIgnoreCase(p.deviceId)) {
+            return true;
+        }
+        if (isSelfIp(p.ip)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean isValidPassword(String password) {
+        if (password == null || password.length() < 8) return false;
+        boolean hasDigit = false;
+        boolean hasLetter = false;
+        boolean hasSpecial = false;
+        for (int i = 0; i < password.length(); i++) {
+            char c = password.charAt(i);
+            if (Character.isDigit(c)) hasDigit = true;
+            else if (Character.isLetter(c)) hasLetter = true;
+            else hasSpecial = true;
+        }
+        return hasDigit && hasLetter && hasSpecial;
+    }
+
+    public List<WhitelistEntry> getWhitelist() {
+        List<WhitelistEntry> list = new ArrayList<>();
+        String json = context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .getString("whitelist_json", "[]");
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject obj = arr.getJSONObject(i);
+                WhitelistEntry w = new WhitelistEntry();
+                w.deviceId = obj.optString("deviceId", "");
+                w.deviceName = obj.optString("deviceName", "");
+                w.platform = obj.optString("platform", "");
+                w.addedTime = obj.optLong("addedTime", 0);
+                if (!w.deviceId.isEmpty()) list.add(w);
+            }
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    public void saveWhitelist(List<WhitelistEntry> list) {
+        JSONArray arr = new JSONArray();
+        if (list != null) {
+            for (WhitelistEntry w : list) {
+                if (w == null || w.deviceId.isEmpty()) continue;
+                JSONObject obj = new JSONObject();
+                try {
+                    obj.put("deviceId", w.deviceId);
+                    obj.put("deviceName", w.deviceName != null ? w.deviceName : "");
+                    obj.put("platform", w.platform != null ? w.platform : "");
+                    obj.put("addedTime", w.addedTime);
+                    arr.put(obj);
+                } catch (Exception ignored) {}
+            }
+        }
+        context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .edit().putString("whitelist_json", arr.toString()).apply();
+    }
+
+    public boolean isDeviceWhitelisted(String deviceId) {
+        if (deviceId == null || deviceId.isEmpty()) return false;
+        List<WhitelistEntry> list = getWhitelist();
+        for (WhitelistEntry w : list) {
+            if (deviceId.equalsIgnoreCase(w.deviceId)) return true;
+        }
+        return false;
+    }
+
+    public void addToWhitelist(String deviceId, String deviceName, String platform) {
+        if (deviceId == null || deviceId.isEmpty()) return;
+        List<WhitelistEntry> list = getWhitelist();
+        for (WhitelistEntry w : list) {
+            if (deviceId.equalsIgnoreCase(w.deviceId)) {
+                w.deviceName = deviceName;
+                w.platform = platform;
+                w.addedTime = System.currentTimeMillis();
+                saveWhitelist(list);
+                return;
+            }
+        }
+        WhitelistEntry entry = new WhitelistEntry();
+        entry.deviceId = deviceId;
+        entry.deviceName = deviceName != null ? deviceName : "未知设备";
+        entry.platform = platform != null ? platform : "";
+        entry.addedTime = System.currentTimeMillis();
+        list.add(entry);
+        saveWhitelist(list);
+    }
+
+    public void removeFromWhitelist(String deviceId) {
+        if (deviceId == null || deviceId.isEmpty()) return;
+        List<WhitelistEntry> list = getWhitelist();
+        list.removeIf(w -> deviceId.equalsIgnoreCase(w.deviceId));
+        saveWhitelist(list);
+    }
+
+    public synchronized List<BlacklistEntry> getBlacklist() {
+        List<BlacklistEntry> list = new ArrayList<>();
+        String json = context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .getString("blacklist_json", "[]");
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject obj = arr.getJSONObject(i);
+                BlacklistEntry b = new BlacklistEntry();
+                b.deviceId = obj.optString("deviceId", "");
+                b.deviceName = obj.optString("deviceName", "");
+                b.platform = obj.optString("platform", "");
+                b.ip = obj.optString("ip", "");
+                b.addedTime = obj.optLong("addedTime", 0);
+                if (!b.deviceId.isEmpty() || !b.ip.isEmpty()) list.add(b);
+            }
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    public synchronized void saveBlacklist(List<BlacklistEntry> list) {
+        JSONArray arr = new JSONArray();
+        if (list != null) {
+            for (BlacklistEntry b : list) {
+                if (b == null) continue;
+                JSONObject obj = new JSONObject();
+                try {
+                    obj.put("deviceId", b.deviceId != null ? b.deviceId : "");
+                    obj.put("deviceName", b.deviceName != null ? b.deviceName : "");
+                    obj.put("platform", b.platform != null ? b.platform : "");
+                    obj.put("ip", b.ip != null ? b.ip : "");
+                    obj.put("addedTime", b.addedTime);
+                    arr.put(obj);
+                } catch (Exception ignored) {}
+            }
+        }
+        context.getSharedPreferences("lan_settings", Context.MODE_PRIVATE)
+                .edit().putString("blacklist_json", arr.toString()).apply();
+    }
+
+    public synchronized boolean isDeviceBlacklisted(String deviceId, String ip) {
+        List<BlacklistEntry> list = getBlacklist();
+        for (BlacklistEntry b : list) {
+            if (deviceId != null && !deviceId.isEmpty() && deviceId.equalsIgnoreCase(b.deviceId)) return true;
+            if (ip != null && !ip.isEmpty() && ip.equalsIgnoreCase(b.ip)) return true;
+        }
+        return false;
+    }
+
+    public synchronized void addToBlacklist(String devId, String devName, String ip, String platform) {
+        List<BlacklistEntry> list = getBlacklist();
+        for (BlacklistEntry b : list) {
+            if ((devId != null && !devId.isEmpty() && devId.equalsIgnoreCase(b.deviceId)) ||
+                (ip != null && !ip.isEmpty() && ip.equalsIgnoreCase(b.ip))) {
+                return;
+            }
+        }
+        BlacklistEntry b = new BlacklistEntry();
+        b.deviceId = devId != null ? devId : "";
+        b.deviceName = devName != null ? devName : "未知设备";
+        b.ip = ip != null ? ip : "";
+        b.platform = platform != null ? platform : "";
+        b.addedTime = System.currentTimeMillis();
+        list.add(b);
+        saveBlacklist(list);
+        if (devId != null && !devId.isEmpty()) {
+            removeFromWhitelist(devId);
+        }
+    }
+
+    public synchronized void removeFromBlacklist(String devId, String ip) {
+        List<BlacklistEntry> list = getBlacklist();
+        list.removeIf(b -> (devId != null && !devId.isEmpty() && devId.equalsIgnoreCase(b.deviceId)) ||
+                           (ip != null && !ip.isEmpty() && ip.equalsIgnoreCase(b.ip)));
+        saveBlacklist(list);
+    }
+
+    public void disconnect(PeerInfo peer) {
+        currentSessionToken = null;
+        currentConnectedPeerId = null;
+        if (peer == null || peer.ip == null || peer.ip.isEmpty()) return;
+        int port = peer.port > 0 ? peer.port : DEFAULT_HTTP_PORT;
+        serverPool.execute(() -> {
+            try {
+                String url = "http://" + peer.ip + ":" + port + "/api/disconnect?fromId="
+                        + URLEncoder.encode(getDeviceId(), "UTF-8")
+                        + "&fromName=" + URLEncoder.encode(getDeviceName(), "UTF-8");
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setConnectTimeout(2000);
+                conn.setReadTimeout(2000);
+                conn.getResponseCode();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    public boolean respondPairRequest(String reqId, boolean accept) {
+        if (reqId == null || reqId.isEmpty()) return false;
+        PairRequestState state = pairRequests.get(reqId);
+        if (state != null) {
+            if (state.isExpired()) {
+                state.status = "timeout";
+                return false;
+            }
+            state.status = accept ? "accepted" : "rejected";
+            if (accept) {
+                currentSessionToken = (state.sessionToken != null && !state.sessionToken.isEmpty()) ? state.sessionToken : java.util.UUID.randomUUID().toString().replace("-", "");
+                currentConnectedPeerId = state.fromId;
+                state.sessionToken = currentSessionToken;
+                PeerInfo peer = new PeerInfo();
+                peer.app = "YYComicReader";
+                peer.deviceId = state.fromId;
+                peer.deviceName = state.fromName;
+                peer.platform = state.fromPlatform;
+                peer.ip = state.fromIp;
+                peer.port = state.fromPort;
+                peer.sessionToken = currentSessionToken;
+                if (onPeerConnectedListener != null) {
+                    onPeerConnectedListener.onPeerConnected(peer);
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 
     private ServerSocket serverSocket;
     private DatagramSocket udpSocket;
@@ -230,6 +619,17 @@ public class LanTransferManager {
         for (String ip : otherIps) {
             if (!all.contains(ip)) all.add(ip);
         }
+        try {
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null && wm.getConnectionInfo() != null) {
+                int ipInt = wm.getConnectionInfo().getIpAddress();
+                if (ipInt != 0) {
+                    String wifiIp = String.format(java.util.Locale.US, "%d.%d.%d.%d",
+                            (ipInt & 0xff), (ipInt >> 8 & 0xff), (ipInt >> 16 & 0xff), (ipInt >> 24 & 0xff));
+                    if (!all.contains(wifiIp)) all.add(wifiIp);
+                }
+            }
+        } catch (Exception ignored) {}
         return all;
     }
 
@@ -247,11 +647,17 @@ public class LanTransferManager {
             } catch (Exception ignored) {}
 
             obj.put("app", "YYComicReader");
+            obj.put("deviceId", getDeviceId());
             obj.put("deviceName", getDeviceName());
             obj.put("platform", "Android");
             obj.put("ip", ip);
             obj.put("port", listeningPort);
             obj.put("comicCount", count);
+            obj.put("requirePassword", isRequirePassword());
+            int vCode = ApkUpdateManager.getLocalVersionCode(context);
+            String vName = ApkUpdateManager.getLocalVersionName(context);
+            obj.put("versionCode", vCode);
+            obj.put("versionName", vName);
         } catch (Exception ignored) {}
         return obj;
     }
@@ -282,6 +688,10 @@ public class LanTransferManager {
             while (running) {
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 udpSocket.receive(packet);
+                String senderIp = packet.getAddress() != null ? packet.getAddress().getHostAddress() : "";
+                if (isSelfIp(senderIp)) {
+                    continue; // 严防本机回环自连接
+                }
                 String msg = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
                 if (msg.startsWith("YYCOMIC_DISCOVER")) {
                     String bestIp = matchBestLocalIpForRemote(packet.getAddress());
@@ -337,10 +747,11 @@ public class LanTransferManager {
                             String json = text.substring("YYCOMIC_HERE|".length());
                             PeerInfo p = parsePeerInfo(new JSONObject(json));
                             String remoteIp = resp.getAddress().getHostAddress();
-                            if (p != null && remoteIp != null) {
-                                if (!selfIps.contains(remoteIp) || p.port != listeningPort) {
-                                    p.ip = remoteIp;
-                                    found.put(p.ip + ":" + p.port, p);
+                            if (p != null && "YYComicReader".equals(p.app) && remoteIp != null) {
+                                p.ip = remoteIp;
+                                if (!isSelf(p) && !isSelfIp(remoteIp)) {
+                                    String peerKey = (p.deviceId != null && !p.deviceId.isEmpty()) ? p.deviceId : (p.ip + ":" + p.port);
+                                    found.put(peerKey, p);
                                 }
                             }
                         }
@@ -375,8 +786,9 @@ public class LanTransferManager {
                         String key = ip + ":" + DEFAULT_HTTP_PORT;
                         if (!found.containsKey(key)) {
                             PeerInfo p = pingPeer(ip, DEFAULT_HTTP_PORT, 550);
-                            if (p != null) {
-                                found.put(p.ip + ":" + p.port, p);
+                            if (p != null && "YYComicReader".equals(p.app) && !isSelf(p) && !isSelfIp(ip)) {
+                                String peerKey = (p.deviceId != null && !p.deviceId.isEmpty()) ? p.deviceId : (p.ip + ":" + p.port);
+                                found.put(peerKey, p);
                             }
                         }
                     } finally {
@@ -394,7 +806,13 @@ public class LanTransferManager {
             udpThread.join(1000);
         } catch (Exception ignored) {}
 
-        return new ArrayList<>(found.values());
+        List<PeerInfo> result = new ArrayList<>();
+        for (PeerInfo pi : found.values()) {
+            if (pi != null && !isSelf(pi) && !isSelfIp(pi.ip)) {
+                result.add(pi);
+            }
+        }
+        return result;
     }
 
     public PeerInfo pingPeer(String hostInput, int defaultPort, int timeoutMs) {
@@ -438,30 +856,248 @@ public class LanTransferManager {
         if (obj == null) return null;
         PeerInfo info = new PeerInfo();
         info.app = obj.optString("app", "");
+        info.deviceId = obj.optString("deviceId", "");
         info.deviceName = obj.optString("deviceName", "未知设备");
         info.platform = obj.optString("platform", "");
         info.ip = obj.optString("ip", "");
         info.port = obj.optInt("port", DEFAULT_HTTP_PORT);
         info.comicCount = obj.optInt("comicCount", 0);
+        info.requirePassword = obj.optBoolean("requirePassword", false);
+        info.versionCode = obj.optInt("versionCode", 0);
+        info.versionName = obj.optString("versionName", "");
         return info;
     }
 
+    public ConnectResult connectToPeerWithHandshake(PeerInfo peer, String password, java.util.concurrent.atomic.AtomicBoolean cancelFlag) {
+        ConnectResult res = new ConnectResult();
+        res.peer = peer;
+        if (peer == null || peer.ip == null || peer.ip.isEmpty() || isSelf(peer) || isSelfIp(peer.ip)) {
+            res.ok = false;
+            res.status = "error";
+            res.message = (peer != null && (isSelf(peer) || isSelfIp(peer.ip))) ? "无法连接自身设备" : "目标设备无效";
+            return res;
+        }
+
+        int port = peer.port > 0 ? peer.port : DEFAULT_HTTP_PORT;
+        String myId = getDeviceId();
+        String proposedToken = java.util.UUID.randomUUID().toString().replace("-", "");
+        currentSessionToken = proposedToken;
+        currentConnectedPeerId = peer.deviceId;
+        try {
+            String authUrl = "http://" + peer.ip + ":" + port + "/api/connect-auth?fromId="
+                    + URLEncoder.encode(myId, "UTF-8")
+                    + "&fromName=" + URLEncoder.encode(getDeviceName(), "UTF-8")
+                    + "&fromPlatform=Android&fromPort=" + listeningPort
+                    + "&sessionToken=" + proposedToken;
+            if (password != null && !password.isEmpty()) {
+                authUrl += "&password=" + URLEncoder.encode(password, "UTF-8");
+            }
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(authUrl).openConnection();
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(5000);
+            conn.setRequestMethod("GET");
+            if (conn.getResponseCode() != 200) {
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = "error";
+                res.message = "HTTP " + conn.getResponseCode();
+                return res;
+            }
+
+            String authJson = readStreamAsString(conn.getInputStream());
+            JSONObject authObj = new JSONObject(authJson);
+            String status = authObj.optString("status", "");
+
+            if ("accepted".equals(status)) {
+                res.ok = true;
+                res.status = "accepted";
+                res.message = "连接成功";
+                String st = authObj.optString("sessionToken", "");
+                if (st == null || st.isEmpty()) st = proposedToken;
+                peer.sessionToken = st;
+                res.sessionToken = st;
+                currentSessionToken = st;
+                currentConnectedPeerId = peer.deviceId;
+                if (onPeerConnectedListener != null) {
+                    onPeerConnectedListener.onPeerConnected(peer);
+                }
+                return res;
+            } else if ("blacklisted".equals(status)) {
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = "blacklisted";
+                res.message = "对方已将本机加入黑名单，拒绝连接";
+                return res;
+            } else if ("need_password".equals(status)) {
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = "need_password";
+                res.message = "对方设备已开启密码连接保护，请输入密码";
+                return res;
+            } else if ("wrong_password".equals(status)) {
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = "wrong_password";
+                res.message = "连接密码错误，请重新输入";
+                return res;
+            } else if ("need_confirm".equals(status)) {
+                String reqId = java.util.UUID.randomUUID().toString().replace("-", "");
+                String reqUrl = "http://" + peer.ip + ":" + port + "/api/connect-request?fromId="
+                        + URLEncoder.encode(myId, "UTF-8")
+                        + "&fromName=" + URLEncoder.encode(getDeviceName(), "UTF-8")
+                        + "&fromPlatform=Android&fromPort=" + listeningPort
+                        + "&reqId=" + reqId
+                        + "&sessionToken=" + proposedToken;
+                HttpURLConnection reqConn = (HttpURLConnection) new URL(reqUrl).openConnection();
+                reqConn.setConnectTimeout(4000);
+                reqConn.setReadTimeout(5000);
+                reqConn.setRequestMethod("GET");
+                if (reqConn.getResponseCode() != 200) {
+                    currentSessionToken = null;
+                    currentConnectedPeerId = null;
+                    res.ok = false;
+                    res.status = "error";
+                    res.message = "发送配对申请失败";
+                    return res;
+                }
+
+                // 轮询状态 (最多 45 次 x 800ms ≈ 36 秒)
+                for (int i = 0; i < 45; i++) {
+                    if (cancelFlag != null && cancelFlag.get()) {
+                        currentSessionToken = null;
+                        currentConnectedPeerId = null;
+                        res.ok = false;
+                        res.status = "cancelled";
+                        res.message = "已取消连接";
+                        return res;
+                    }
+                    try {
+                        Thread.sleep(800);
+                    } catch (InterruptedException e) {
+                        currentSessionToken = null;
+                        currentConnectedPeerId = null;
+                        res.ok = false;
+                        res.status = "cancelled";
+                        res.message = "已取消连接";
+                        return res;
+                    }
+                    if (cancelFlag != null && cancelFlag.get()) {
+                        currentSessionToken = null;
+                        currentConnectedPeerId = null;
+                        res.ok = false;
+                        res.status = "cancelled";
+                        res.message = "已取消连接";
+                        return res;
+                    }
+
+                    String pollUrl = "http://" + peer.ip + ":" + port + "/api/connect-status?reqId=" + reqId;
+                    HttpURLConnection pollConn = (HttpURLConnection) new URL(pollUrl).openConnection();
+                    pollConn.setConnectTimeout(3000);
+                    pollConn.setReadTimeout(3000);
+                    pollConn.setRequestMethod("GET");
+                    if (pollConn.getResponseCode() == 200) {
+                        String pollJson = readStreamAsString(pollConn.getInputStream());
+                        JSONObject pollObj = new JSONObject(pollJson);
+                        String pollStatus = pollObj.optString("status", "");
+                        if ("accepted".equals(pollStatus)) {
+                            res.ok = true;
+                            res.status = "accepted";
+                            res.message = "对方已允许连接";
+                            String st = pollObj.optString("sessionToken", "");
+                            if (st == null || st.isEmpty()) st = proposedToken;
+                            peer.sessionToken = st;
+                            res.sessionToken = st;
+                            currentSessionToken = st;
+                            currentConnectedPeerId = peer.deviceId;
+                            if (onPeerConnectedListener != null) {
+                                onPeerConnectedListener.onPeerConnected(peer);
+                            }
+                            return res;
+                        } else if ("rejected".equals(pollStatus)) {
+                            currentSessionToken = null;
+                            currentConnectedPeerId = null;
+                            res.ok = false;
+                            res.status = "rejected";
+                            res.message = "对方拒绝了连接请求";
+                            return res;
+                        } else if ("blacklisted".equals(pollStatus)) {
+                            currentSessionToken = null;
+                            currentConnectedPeerId = null;
+                            res.ok = false;
+                            res.status = "blacklisted";
+                            res.message = "对方已将本机加入黑名单，拒绝连接";
+                            return res;
+                        } else if ("timeout".equals(pollStatus)) {
+                            currentSessionToken = null;
+                            currentConnectedPeerId = null;
+                            res.ok = false;
+                            res.status = "timeout";
+                            res.message = "等待对方确认超时";
+                            return res;
+                        }
+                    }
+                }
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = "timeout";
+                res.message = "等待对方确认超时";
+                return res;
+            } else {
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                res.ok = false;
+                res.status = status;
+                res.message = authObj.optString("message", "连接被拒绝");
+                return res;
+            }
+        } catch (Exception e) {
+            currentSessionToken = null;
+            currentConnectedPeerId = null;
+            res.ok = false;
+            res.status = "error";
+            res.message = "连接失败: " + e.getMessage();
+            return res;
+        }
+    }
+
     public List<RemoteComic> fetchRemoteComics(String ip, int port) throws Exception {
-        return fetchRemoteComics(ip, port, true);
+        return fetchRemoteComics(ip, port, currentSessionToken, true);
     }
 
     public List<RemoteComic> fetchRemoteComics(String ip, int port, boolean notifyConnect) throws Exception {
+        return fetchRemoteComics(ip, port, currentSessionToken, notifyConnect);
+    }
+
+    public List<RemoteComic> fetchRemoteComics(String ip, int port, String sessionToken, boolean notifyConnect) throws Exception {
+        if (isSelfIp(ip)) {
+            return new ArrayList<>();
+        }
         String urlStr = "http://" + ip + ":" + port + "/api/comics";
+        List<String> qParams = new ArrayList<>();
+        qParams.add("fromId=" + URLEncoder.encode(getDeviceId(), "UTF-8"));
         if (notifyConnect) {
             int myCount = 0;
             try {
                 List<ComicItem> active = comicListProvider != null ? comicListProvider.getActiveComics() : null;
                 if (active != null) myCount = active.size();
             } catch (Exception ignored) {}
-            urlStr += "?peerName=" + URLEncoder.encode(getDeviceName(), "UTF-8")
-                    + "&peerPlatform=Android"
-                    + "&peerPort=" + listeningPort
-                    + "&peerComics=" + myCount;
+            qParams.add("peerName=" + URLEncoder.encode(getDeviceName(), "UTF-8"));
+            qParams.add("peerPlatform=Android");
+            qParams.add("peerPort=" + listeningPort);
+            qParams.add("peerComics=" + myCount);
+        }
+        String effectiveToken = (sessionToken != null && !sessionToken.isEmpty()) ? sessionToken : currentSessionToken;
+        if (effectiveToken != null && !effectiveToken.isEmpty()) {
+            qParams.add("sessionToken=" + URLEncoder.encode(effectiveToken, "UTF-8"));
+        }
+        if (!qParams.isEmpty()) {
+            urlStr += "?" + String.join("&", qParams);
         }
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -469,6 +1105,9 @@ public class LanTransferManager {
         conn.setReadTimeout(10000);
         conn.setRequestMethod("GET");
 
+        if (conn.getResponseCode() == 401) {
+            throw new Exception("session_expired");
+        }
         if (conn.getResponseCode() != 200) {
             throw new Exception("HTTP " + conn.getResponseCode());
         }
@@ -728,6 +1367,83 @@ public class LanTransferManager {
         } catch (Exception ignored) {}
     }
 
+    public boolean renameRemoteComic(String ip, int port, String comicId, String oldTitle, String newTitle) {
+        try {
+            String url = "http://" + ip + ":" + port + "/api/comic-rename?id=" + URLEncoder.encode(comicId != null ? comicId : "", "UTF-8")
+                    + "&title=" + URLEncoder.encode(oldTitle != null ? oldTitle : "", "UTF-8")
+                    + "&newTitle=" + URLEncoder.encode(newTitle != null ? newTitle : "", "UTF-8");
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setRequestMethod("POST");
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean setRemoteComicCoverFromPage(String ip, int port, String comicId, int pageIndex) {
+        try {
+            String url = "http://" + ip + ":" + port + "/api/comic-set-cover-page?id=" + URLEncoder.encode(comicId != null ? comicId : "", "UTF-8")
+                    + "&pageIndex=" + pageIndex;
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setRequestMethod("POST");
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean resetRemoteComicCover(String ip, int port, String comicId) {
+        try {
+            String url = "http://" + ip + ":" + port + "/api/comic-reset-cover?id=" + URLEncoder.encode(comicId != null ? comicId : "", "UTF-8");
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setRequestMethod("POST");
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean setRemoteComicCoverFile(String ip, int port, String comicId, byte[] imageBytes, String fileName) {
+        try {
+            String url = "http://" + ip + ":" + port + "/api/comic-set-cover-file?id=" + URLEncoder.encode(comicId != null ? comicId : "", "UTF-8")
+                    + "&fileName=" + URLEncoder.encode(fileName != null ? fileName : "cover.jpg", "UTF-8");
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(20000);
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setFixedLengthStreamingMode(imageBytes.length);
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(imageBytes);
+                os.flush();
+            }
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean deleteRemoteComic(String ip, int port, String comicId, String title) {
+        try {
+            String url = "http://" + ip + ":" + port + "/api/comic-delete?id=" + URLEncoder.encode(comicId != null ? comicId : "", "UTF-8")
+                    + "&title=" + URLEncoder.encode(title != null ? title : "", "UTF-8");
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setRequestMethod("POST");
+            return conn.getResponseCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // ========================= 轻量级内嵌 HTTP 服务端 =========================
     private void acceptHttpLoop() {
         while (running && serverSocket != null && !serverSocket.isClosed()) {
@@ -789,26 +1505,298 @@ public class LanTransferManager {
             if ("GET".equals(method) && "/api/ping".equalsIgnoreCase(path)) {
                 String bestIp = matchBestLocalIpForRemote(sock.getInetAddress());
                 writeJsonResponse(out, 200, buildSelfPeerJson(bestIp).toString());
-            } else if ("GET".equals(method) && "/api/comics".equalsIgnoreCase(path)) {
-                String peerName = query.get("peerName");
-                if (peerName != null && !peerName.trim().isEmpty() && onPeerConnectedListener != null) {
-                    String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
-                    if (remoteIp != null && !remoteIp.isEmpty()) {
-                        PeerInfo peer = new PeerInfo();
-                        peer.app = "YYComicReader";
-                        peer.deviceName = peerName.trim();
-                        peer.platform = query.getOrDefault("peerPlatform", "Windows");
-                        peer.ip = remoteIp;
-                        try {
-                            peer.port = Integer.parseInt(query.getOrDefault("peerPort", String.valueOf(DEFAULT_HTTP_PORT)));
-                        } catch (Exception ignored) {
-                            peer.port = DEFAULT_HTTP_PORT;
-                        }
-                        try {
-                            peer.comicCount = Integer.parseInt(query.getOrDefault("peerComics", "0"));
-                        } catch (Exception ignored) {}
+            } else if ("/api/connect-auth".equalsIgnoreCase(path) || "api/connect-auth".equalsIgnoreCase(path)) {
+                String fromId = query.getOrDefault("fromId", "");
+                String fromName = query.getOrDefault("fromName", "未知设备");
+                String fromPlatform = query.getOrDefault("fromPlatform", "未知");
+                int fromPort = DEFAULT_HTTP_PORT;
+                try {
+                    fromPort = Integer.parseInt(query.getOrDefault("fromPort", String.valueOf(DEFAULT_HTTP_PORT)));
+                } catch (Exception ignored) {}
+                String password = query.getOrDefault("password", "");
+
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (fromId.equalsIgnoreCase(getDeviceId()) || isSelfIp(remoteIp)) {
+                    writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"rejected\",\"message\":\"无法连接本机自身设备\"}");
+                    return;
+                }
+                if (isDeviceBlacklisted(fromId, remoteIp)) {
+                    writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"blacklisted\",\"message\":\"设备已在黑名单中，拒绝连接\"}");
+                    return;
+                }
+                String incomingToken = query.get("sessionToken");
+                boolean isWhitelisted = !fromId.isEmpty() && isDeviceWhitelisted(fromId);
+                boolean reqPass = isRequirePassword();
+                String expectedPass = getConnectionPassword();
+
+                if (isWhitelisted) {
+                    currentSessionToken = (incomingToken != null && !incomingToken.isEmpty()) ? incomingToken : java.util.UUID.randomUUID().toString().replace("-", "");
+                    currentConnectedPeerId = fromId;
+                    PeerInfo peer = new PeerInfo();
+                    peer.app = "YYComicReader";
+                    peer.deviceId = fromId;
+                    peer.deviceName = fromName;
+                    peer.platform = fromPlatform;
+                    peer.ip = remoteIp;
+                    peer.port = fromPort;
+                    peer.sessionToken = currentSessionToken;
+                    if (onPeerConnectedListener != null) {
                         onPeerConnectedListener.onPeerConnected(peer);
                     }
+                    writeJsonResponse(out, 200, "{\"ok\":true,\"status\":\"accepted\",\"sessionToken\":\"" + currentSessionToken + "\",\"message\":\"白名单免确认连接\"}");
+                } else if (reqPass) {
+                    if (password.isEmpty()) {
+                        writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"need_password\",\"message\":\"需要输入连接密码\"}");
+                    } else if (password.equals(expectedPass)) {
+                        currentSessionToken = (incomingToken != null && !incomingToken.isEmpty()) ? incomingToken : java.util.UUID.randomUUID().toString().replace("-", "");
+                        currentConnectedPeerId = fromId;
+                        PeerInfo peer = new PeerInfo();
+                        peer.app = "YYComicReader";
+                        peer.deviceId = fromId;
+                        peer.deviceName = fromName;
+                        peer.platform = fromPlatform;
+                        peer.ip = remoteIp;
+                        peer.port = fromPort;
+                        peer.sessionToken = currentSessionToken;
+                        if (onPeerConnectedListener != null) {
+                            onPeerConnectedListener.onPeerConnected(peer);
+                        }
+                        writeJsonResponse(out, 200, "{\"ok\":true,\"status\":\"accepted\",\"sessionToken\":\"" + currentSessionToken + "\",\"message\":\"密码验证通过\"}");
+                    } else {
+                        writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"wrong_password\",\"message\":\"密码错误\"}");
+                    }
+                } else {
+                    writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"need_confirm\",\"message\":\"需要被连接方确认\"}");
+                }
+            } else if ("/api/connect-request".equalsIgnoreCase(path) || "api/connect-request".equalsIgnoreCase(path)) {
+                String reqId = query.getOrDefault("reqId", java.util.UUID.randomUUID().toString().replace("-", ""));
+                String fromId = query.getOrDefault("fromId", "");
+                String fromName = query.getOrDefault("fromName", "未知设备");
+                String fromPlatform = query.getOrDefault("fromPlatform", "");
+                int fromPort = DEFAULT_HTTP_PORT;
+                try {
+                    fromPort = Integer.parseInt(query.getOrDefault("fromPort", String.valueOf(DEFAULT_HTTP_PORT)));
+                } catch (Exception ignored) {}
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (fromId.equalsIgnoreCase(getDeviceId()) || isSelfIp(remoteIp)) {
+                    writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"rejected\",\"message\":\"无法连接本机自身设备\"}");
+                    return;
+                }
+                if (isDeviceBlacklisted(fromId, remoteIp)) {
+                    writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"blacklisted\",\"message\":\"设备已在黑名单中，拒绝连接\"}");
+                    return;
+                }
+                String incomingToken = query.get("sessionToken");
+                if (!fromId.isEmpty() && isDeviceWhitelisted(fromId)) {
+                    currentSessionToken = (incomingToken != null && !incomingToken.isEmpty()) ? incomingToken : java.util.UUID.randomUUID().toString().replace("-", "");
+                    currentConnectedPeerId = fromId;
+                    PeerInfo peer = new PeerInfo();
+                    peer.app = "YYComicReader";
+                    peer.deviceId = fromId;
+                    peer.deviceName = fromName;
+                    peer.platform = fromPlatform;
+                    peer.ip = remoteIp;
+                    peer.port = fromPort;
+                    peer.sessionToken = currentSessionToken;
+                    if (onPeerConnectedListener != null) {
+                        onPeerConnectedListener.onPeerConnected(peer);
+                    }
+                    writeJsonResponse(out, 200, "{\"ok\":true,\"status\":\"accepted\",\"sessionToken\":\"" + currentSessionToken + "\",\"message\":\"白名单免确认连接\"}");
+                    return;
+                }
+
+                PairRequestState reqState = new PairRequestState();
+                reqState.reqId = reqId;
+                reqState.fromId = fromId;
+                reqState.fromName = fromName;
+                reqState.fromPlatform = fromPlatform;
+                reqState.fromIp = remoteIp;
+                reqState.fromPort = fromPort;
+                reqState.status = "pending";
+                reqState.sessionToken = (incomingToken != null && !incomingToken.isEmpty()) ? incomingToken : java.util.UUID.randomUUID().toString().replace("-", "");
+                reqState.createdTime = System.currentTimeMillis();
+
+                pairRequests.put(reqId, reqState);
+                if (onPairRequestListener != null) {
+                    onPairRequestListener.onPairRequestReceived(reqState);
+                }
+
+                JSONObject resp = new JSONObject();
+                resp.put("ok", true);
+                resp.put("status", "pending");
+                resp.put("reqId", reqId);
+                writeJsonResponse(out, 200, resp.toString());
+            } else if ("/api/connect-status".equalsIgnoreCase(path) || "api/connect-status".equalsIgnoreCase(path)) {
+                String reqId = query.getOrDefault("reqId", "");
+                PairRequestState pollState = pairRequests.get(reqId);
+                if (pollState != null) {
+                    if (pollState.isExpired() || "timeout".equals(pollState.status)) {
+                        pollState.status = "timeout";
+                    }
+                    JSONObject resp = new JSONObject();
+                    resp.put("ok", true);
+                    resp.put("status", pollState.status);
+                    resp.put("sessionToken", pollState.sessionToken != null ? pollState.sessionToken : "");
+                    writeJsonResponse(out, 200, resp.toString());
+                } else {
+                    writeJsonResponse(out, 404, "{\"ok\":false,\"status\":\"not_found\"}");
+                }
+            } else if ("/api/connect-respond".equalsIgnoreCase(path) || "api/connect-respond".equalsIgnoreCase(path)) {
+                String reqId = query.getOrDefault("reqId", "");
+                String action = query.getOrDefault("action", "reject").toLowerCase();
+                boolean accept = action.equals("accept") || action.equals("1") || action.equals("true");
+
+                PairRequestState respState = pairRequests.get(reqId);
+                if (respState != null) {
+                    if (respState.isExpired() || "timeout".equals(respState.status)) {
+                        respState.status = "timeout";
+                        writeJsonResponse(out, 200, "{\"ok\":false,\"status\":\"timeout\",\"error\":\"请求已超时失效\"}");
+                        return;
+                    }
+                    respState.status = accept ? "accepted" : "rejected";
+                    if (accept) {
+                        currentSessionToken = java.util.UUID.randomUUID().toString().replace("-", "");
+                        currentConnectedPeerId = respState.fromId;
+                        respState.sessionToken = currentSessionToken;
+                        PeerInfo peer = new PeerInfo();
+                        peer.app = "YYComicReader";
+                        peer.deviceId = respState.fromId;
+                        peer.deviceName = respState.fromName;
+                        peer.platform = respState.fromPlatform;
+                        peer.ip = respState.fromIp;
+                        peer.port = respState.fromPort;
+                        peer.sessionToken = currentSessionToken;
+                        if (onPeerConnectedListener != null) {
+                            onPeerConnectedListener.onPeerConnected(peer);
+                        }
+                    }
+                    JSONObject resp = new JSONObject();
+                    resp.put("ok", true);
+                    resp.put("status", respState.status);
+                    resp.put("sessionToken", respState.sessionToken != null ? respState.sessionToken : "");
+                    writeJsonResponse(out, 200, resp.toString());
+                } else {
+                    writeJsonResponse(out, 404, "{\"ok\":false,\"error\":\"Request not found\"}");
+                }
+            } else if ("/api/disconnect".equalsIgnoreCase(path) || "api/disconnect".equalsIgnoreCase(path)) {
+                String fromId = query.getOrDefault("fromId", "");
+                String fromName = query.getOrDefault("fromName", "");
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (remoteIp.startsWith("/::ffff:")) remoteIp = remoteIp.substring(8);
+                else if (remoteIp.startsWith("::ffff:")) remoteIp = remoteIp.substring(7);
+                else if (remoteIp.startsWith("/")) remoteIp = remoteIp.substring(1);
+                currentSessionToken = null;
+                currentConnectedPeerId = null;
+                if (onPeerDisconnectedListener != null) {
+                    onPeerDisconnectedListener.onPeerDisconnected(fromId, fromName, remoteIp);
+                }
+                writeJsonResponse(out, 200, "{\"ok\":true}");
+            } else if ("GET".equals(method) && ("/api/comic-progress".equalsIgnoreCase(path) || "api/comic-progress".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                String title = query.get("title");
+                ComicItem target = findComicById(id);
+                if (target == null && title != null) target = findComicById(title);
+                if (target != null) {
+                    int p = Math.max(1, target.getLastReadPage());
+                    JSONObject resp = new JSONObject();
+                    resp.put("ok", true);
+                    resp.put("id", target.getId());
+                    resp.put("lastReadPage", p);
+                    resp.put("readCount", target.getReadCount());
+                    writeJsonResponse(out, 200, resp.toString());
+                } else {
+                    writeJsonResponse(out, 404, "{\"ok\":false,\"error\":\"Comic not found\"}");
+                }
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/record-read".equalsIgnoreCase(path) || "api/record-read".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                String title = query.get("title");
+                int page = 1;
+                try { page = Integer.parseInt(query.get("page")); } catch (Exception ignored) {}
+                boolean inc = "1".equals(query.get("inc")) || "true".equalsIgnoreCase(query.get("inc")) || query.get("inc") == null;
+                if (onRemoteOperationListener != null) {
+                    onRemoteOperationListener.onRecordRead(id, title, page, inc);
+                }
+                writeJsonResponse(out, 200, "{\"ok\":true}");
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/comic-delete".equalsIgnoreCase(path) || "api/comic-delete".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                String title = query.get("title");
+                boolean success = false;
+                if (onRemoteOperationListener != null) {
+                    success = onRemoteOperationListener.onDeleteComic(id, title);
+                }
+                if (success) {
+                    writeJsonResponse(out, 200, "{\"ok\":true}");
+                } else {
+                    writeJsonResponse(out, 404, "{\"ok\":false,\"error\":\"Comic not found or failed to delete\"}");
+                }
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/comic-rename".equalsIgnoreCase(path) || "api/comic-rename".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                String title = query.get("title");
+                String newTitle = query.get("newTitle");
+                boolean success = false;
+                if (onRemoteOperationListener != null && newTitle != null && !newTitle.trim().isEmpty()) {
+                    success = onRemoteOperationListener.onRenameComic(id, title, newTitle.trim());
+                }
+                if (success) {
+                    writeJsonResponse(out, 200, "{\"ok\":true,\"newTitle\":\"" + newTitle.trim() + "\"}");
+                } else {
+                    writeJsonResponse(out, 400, "{\"ok\":false,\"error\":\"Failed to rename comic\"}");
+                }
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/comic-set-cover-page".equalsIgnoreCase(path) || "api/comic-set-cover-page".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                int pageIndex = 0;
+                try { pageIndex = Integer.parseInt(query.get("pageIndex")); } catch (Exception ignored) {}
+                boolean success = false;
+                if (onRemoteOperationListener != null) {
+                    success = onRemoteOperationListener.onSetComicCoverPage(id, pageIndex);
+                }
+                if (success) {
+                    writeJsonResponse(out, 200, "{\"ok\":true}");
+                } else {
+                    writeJsonResponse(out, 400, "{\"ok\":false,\"error\":\"Failed to set comic cover\"}");
+                }
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/comic-reset-cover".equalsIgnoreCase(path) || "api/comic-reset-cover".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                boolean success = false;
+                if (onRemoteOperationListener != null) {
+                    success = onRemoteOperationListener.onResetComicCover(id);
+                }
+                if (success) {
+                    writeJsonResponse(out, 200, "{\"ok\":true}");
+                } else {
+                    writeJsonResponse(out, 400, "{\"ok\":false,\"error\":\"Failed to reset comic cover\"}");
+                }
+            } else if (("POST".equals(method) || "GET".equals(method)) && ("/api/comic-set-cover-file".equalsIgnoreCase(path) || "api/comic-set-cover-file".equalsIgnoreCase(path))) {
+                String id = query.get("id");
+                String ext = query.get("ext");
+                if (ext == null || ext.isEmpty()) ext = ".jpg";
+                boolean success = false;
+                if (contentLength > 0 && id != null && !id.trim().isEmpty() && onRemoteOperationListener != null) {
+                    byte[] imgBytes = new byte[(int) contentLength];
+                    int totalRead = 0;
+                    while (totalRead < contentLength) {
+                        int r = in.read(imgBytes, totalRead, (int) (contentLength - totalRead));
+                        if (r <= 0) break;
+                        totalRead += r;
+                    }
+                    success = onRemoteOperationListener.onSetComicCoverFile(id, imgBytes, ext);
+                }
+                if (success) {
+                    writeJsonResponse(out, 200, "{\"ok\":true}");
+                } else {
+                    writeJsonResponse(out, 400, "{\"ok\":false,\"error\":\"Failed to save custom cover file\"}");
+                }
+            } else if ("GET".equals(method) && "/api/comics".equalsIgnoreCase(path)) {
+                String fromId = query.get("fromId");
+                String sessionToken = query.get("sessionToken");
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (isDeviceBlacklisted(fromId, remoteIp)) {
+                    writeJsonResponse(out, 403, "{\"error\":\"Device blacklisted\"}");
+                    return;
+                }
+                if (!isRequestAuthorized(fromId, remoteIp, sessionToken)) {
+                    writeJsonResponse(out, 401, "{\"ok\":false,\"status\":\"unauthorized\",\"error\":\"session_expired\",\"message\":\"未建立连接或连接已失效，请重新连接\"}");
+                    return;
                 }
 
                 List<ComicItem> active = comicListProvider.getActiveComics();
@@ -854,6 +1842,17 @@ public class LanTransferManager {
                 out.write(imgBytes);
                 out.flush();
             } else if ("GET".equals(method) && "/api/comic-manifest".equalsIgnoreCase(path)) {
+                String fromId = query.get("fromId");
+                String sessionToken = query.get("sessionToken");
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (isDeviceBlacklisted(fromId, remoteIp)) {
+                    writeJsonResponse(out, 403, "{\"error\":\"Device blacklisted\"}");
+                    return;
+                }
+                if (!isRequestAuthorized(fromId, remoteIp, sessionToken)) {
+                    writeJsonResponse(out, 401, "{\"ok\":false,\"status\":\"unauthorized\",\"error\":\"session_expired\",\"message\":\"未建立连接或连接已失效，请重新连接\"}");
+                    return;
+                }
                 String id = query.get("id");
                 ComicItem target = findComicById(id);
                 if (target == null) {
@@ -879,6 +1878,17 @@ public class LanTransferManager {
                 manifest.put("pages", pageArr);
                 writeJsonResponse(out, 200, manifest.toString());
             } else if ("GET".equals(method) && "/api/comic-page".equalsIgnoreCase(path)) {
+                String fromId = query.get("fromId");
+                String sessionToken = query.get("sessionToken");
+                String remoteIp = sock.getInetAddress() != null ? sock.getInetAddress().getHostAddress() : "";
+                if (isDeviceBlacklisted(fromId, remoteIp)) {
+                    writeJsonResponse(out, 403, "{\"error\":\"Device blacklisted\"}");
+                    return;
+                }
+                if (!isRequestAuthorized(fromId, remoteIp, sessionToken)) {
+                    writeJsonResponse(out, 401, "{\"ok\":false,\"status\":\"unauthorized\",\"error\":\"session_expired\",\"message\":\"未建立连接或连接已失效，请重新连接\"}");
+                    return;
+                }
                 String id = query.get("id");
                 int pageIdx = 0;
                 try {
@@ -1025,6 +2035,34 @@ public class LanTransferManager {
                     onBatchTransferCompleteListener.onBatchComplete(mode, peerName, transferredCount, skippedCount);
                 }
                 writeJsonResponse(out, 200, "{\"ok\":true}");
+            } else if ("POST".equals(method) && ("/api/push-update".equalsIgnoreCase(path) || "api/push-update".equalsIgnoreCase(path))) {
+                byte[] body = new byte[contentLength > 0 ? (int) contentLength : 0];
+                if (contentLength > 0) {
+                    int read = 0;
+                    while (read < contentLength) {
+                        int r = in.read(body, read, (int) (contentLength - read));
+                        if (r <= 0) break;
+                        read += r;
+                    }
+                }
+                try {
+                    String jsonStr = new String(body, "UTF-8");
+                    org.json.JSONObject obj = new org.json.JSONObject(jsonStr);
+                    ApkUpdateManager.UpdateInfo info = ApkUpdateManager.UpdateInfo.fromJson(obj);
+                    int localCode = ApkUpdateManager.getLocalVersionCode(context);
+                    // 核心要求：若非手动强制推送，当本地版本已是最新或更高时，绝不弹窗打扰用户
+                    boolean force = obj.optBoolean("force", false);
+                    if (info != null && (info.versionCode > localCode || force) && onUpdateReceivedListener != null) {
+                        onUpdateReceivedListener.onUpdateReceived(info);
+                    }
+                } catch (Exception ignored) {}
+                writeJsonResponse(out, 200, "{\"ok\":true}");
+            } else if ("GET".equals(method) && ("/api/client-version".equalsIgnoreCase(path) || "api/client-version".equalsIgnoreCase(path))) {
+                int vCode = ApkUpdateManager.getLocalVersionCode(context);
+                String vName = ApkUpdateManager.getLocalVersionName(context);
+                writeJsonResponse(out, 200, "{\"versionCode\":" + vCode + ",\"versionName\":\"" + vName + "\"}");
+            } else if ("GET".equals(method) && ("/api/check-update".equalsIgnoreCase(path) || "api/check-update".equalsIgnoreCase(path))) {
+                writeJsonResponse(out, 200, "{\"hasUpdate\":false}");
             } else {
                 writeJsonResponse(out, 404, "{\"error\":\"Unknown endpoint\"}");
             }
@@ -1126,7 +2164,7 @@ public class LanTransferManager {
         out.flush();
     }
 
-    private static String readStreamAsString(InputStream in) throws Exception {
+    public static String readStreamAsString(InputStream in) throws Exception {
         try (InputStream input = new BufferedInputStream(in);
              ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             byte[] buf = new byte[8192];

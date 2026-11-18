@@ -65,7 +65,7 @@
             android:layout_height="300dp"
             android:layout_marginTop="12dp"
             android:background="@drawable/search_bg"
-            android:backgroundTint="#14161F"
+            android:backgroundTint="@color/bg_container"
             android:padding="6dp">
 
             <androidx.recyclerview.widget.RecyclerView

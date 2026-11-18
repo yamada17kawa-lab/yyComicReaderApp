@@ -14,6 +14,7 @@ public class ComicItem implements Serializable {
     private int readCount;
     private long lastReadTime;
     private long importTime;
+    private int lastReadPage = 1;
     private boolean isMissing = false;
 
     public ComicItem() {
@@ -130,6 +131,14 @@ public class ComicItem implements Serializable {
 
     public void setImportTime(long importTime) {
         this.importTime = importTime;
+    }
+
+    public int getLastReadPage() {
+        return lastReadPage > 0 ? lastReadPage : 1;
+    }
+
+    public void setLastReadPage(int lastReadPage) {
+        this.lastReadPage = lastReadPage > 0 ? lastReadPage : 1;
     }
 
     public boolean isMissing() {

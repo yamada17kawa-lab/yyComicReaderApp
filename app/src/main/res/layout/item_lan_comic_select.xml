@@ -12,7 +12,7 @@
     android:paddingTop="11dp"
     android:paddingBottom="11dp"
     android:background="@drawable/search_bg"
-    android:backgroundTint="#1D202C">
+    android:backgroundTint="@color/bg_surface">
 
     <!-- 选择复选框 -->
     <CheckBox
@@ -104,12 +104,12 @@
         android:layout_width="wrap_content"
         android:layout_height="28dp"
         android:gravity="center"
-        android:background="@drawable/btn_pill_primary"
-        android:backgroundTint="#336366F1"
+        android:background="@drawable/btn_pill_surface"
+        android:backgroundTint="@color/primary_container"
         android:paddingStart="11dp"
         android:paddingEnd="11dp"
         android:text="在线看"
-        android:textColor="#E0E7FF"
+        android:textColor="@color/primary"
         android:textSize="11.5sp"
         android:textStyle="bold"
         android:singleLine="true"
