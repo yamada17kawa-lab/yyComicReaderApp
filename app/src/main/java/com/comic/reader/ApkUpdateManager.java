@@ -103,6 +103,120 @@ public class ApkUpdateManager {
         void onResult(UpdateInfo info, boolean hasUpdate);
     }
 
+    /**
+     * 主动向局域网（或已连接电脑端）检查并拉取最新更新包。
+     * 如果有最新的软件包（versionCode > 本地版本）则弹出更新对话框并支持一键下载安装；
+     * 如果没有最新软件包，则提示当前已是最新版本，不执行更新。
+     */
+    public static void checkAndPullUpdate(
+            Activity activity,
+            LanTransferManager lanTransferManager,
+            LanTransferManager.PeerInfo currentPeer,
+            java.util.function.Consumer<Boolean> onFinished) {
+        if (activity == null || activity.isFinishing()) return;
+
+        Toast.makeText(activity, "🔍 正在检查电脑端是否有最新版本...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            int localCode = getLocalVersionCode(activity);
+            String localName = getLocalVersionName(activity);
+
+            // 搜集候选查询目标 (IP + Port)
+            java.util.LinkedHashMap<String, Integer> targets = new java.util.LinkedHashMap<>();
+
+            // 1. 优先使用当前连接的设备
+            if (currentPeer != null && currentPeer.ip != null && !currentPeer.ip.isEmpty()) {
+                int port = currentPeer.port > 0 ? currentPeer.port : LanTransferManager.DEFAULT_HTTP_PORT;
+                targets.put(currentPeer.ip, port);
+            }
+
+            // 2. 其次查询已探测到的局域网可用设备
+            if (lanTransferManager != null) {
+                try {
+                    java.util.List<LanTransferManager.PeerInfo> discovered = lanTransferManager.discoverPeers();
+                    if (discovered != null) {
+                        for (LanTransferManager.PeerInfo p : discovered) {
+                            if (p != null && p.ip != null && !p.ip.isEmpty() && !lanTransferManager.isSelf(p) && !lanTransferManager.isSelfIp(p.ip)) {
+                                int port = p.port > 0 ? p.port : LanTransferManager.DEFAULT_HTTP_PORT;
+                                targets.put(p.ip, port);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 3. 兜底查询历史连接过的电脑 IP
+            try {
+                SharedPreferences sp = activity.getSharedPreferences("lan_settings", Context.MODE_PRIVATE);
+                String lastIp = sp.getString("last_peer_ip", "");
+                if (lastIp != null && !lastIp.isEmpty()) {
+                    targets.put(lastIp, LanTransferManager.DEFAULT_HTTP_PORT);
+                }
+            } catch (Exception ignored) {}
+
+            if (targets.isEmpty()) {
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(activity, "⚠️ 未在局域网内检测到电脑端，请确保电脑已启动 YY漫画阅读器 并连接同一 Wi-Fi", Toast.LENGTH_LONG).show();
+                    if (onFinished != null) onFinished.accept(false);
+                });
+                return;
+            }
+
+            UpdateInfo foundNewer = null;
+            boolean anyServerResponded = false;
+            String latestServerVersion = "";
+
+            for (java.util.Map.Entry<String, Integer> entry : targets.entrySet()) {
+                String ip = entry.getKey();
+                int port = entry.getValue();
+                try {
+                    URL url = new URL("http://" + ip + ":" + port + "/api/check-update");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(3000);
+                    conn.setReadTimeout(4000);
+                    conn.setRequestMethod("GET");
+                    if (conn.getResponseCode() == 200) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) sb.append(line);
+                        reader.close();
+
+                        JSONObject obj = new JSONObject(sb.toString());
+                        UpdateInfo info = UpdateInfo.fromJson(obj);
+                        anyServerResponded = true;
+                        if (info != null) {
+                            latestServerVersion = info.versionName;
+                            // 检查是否有最新版本（versionCode 大于本地版本）
+                            if (info.versionCode > localCode && info.downloadUrl != null && !info.downloadUrl.isEmpty()) {
+                                foundNewer = info;
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            final UpdateInfo newer = foundNewer;
+            final boolean responded = anyServerResponded;
+            final String serverVer = latestServerVersion;
+
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (newer != null) {
+                    Toast.makeText(activity, "🎉 发现最新版本 v" + newer.versionName + "，准备更新！", Toast.LENGTH_SHORT).show();
+                    showUpdateDialog(activity, newer);
+                    if (onFinished != null) onFinished.accept(true);
+                } else if (responded) {
+                    Toast.makeText(activity, "当前已是最新版本 (v" + localName + " Build " + localCode + ")，无需更新", Toast.LENGTH_SHORT).show();
+                    if (onFinished != null) onFinished.accept(false);
+                } else {
+                    Toast.makeText(activity, "⚠️ 未能连接到电脑端更新服务，请检查网络设置与电脑端服务状态", Toast.LENGTH_LONG).show();
+                    if (onFinished != null) onFinished.accept(false);
+                }
+            });
+        }).start();
+    }
+
     public static void checkRemoteUpdateAsync(Context context, String remoteIp, int port, CheckUpdateCallback callback) {
         new Thread(() -> {
             try {

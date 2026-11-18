@@ -1769,6 +1769,7 @@ public class MainActivity extends AppCompatActivity {
                 this,
                 allComics,
                 lanTransferManager,
+                currentConnectedPeer,
                 currentSortMode,
                 new SettingsDialogManager.OnSettingsActionListener() {
                     @Override
@@ -2321,6 +2322,9 @@ public class MainActivity extends AppCompatActivity {
         // 4. 清空所有选择
         menu.add(0, 4, 0, "🗑️ 清空所有选择");
 
+        // 5. 检查电脑端更新
+        menu.add(0, 5, 0, "🚀 检查电脑端更新");
+
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
@@ -2334,6 +2338,10 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             } else if (id == 4) {
                 if (onClearSelection != null) onClearSelection.run();
+                return true;
+            } else if (id == 5) {
+                LanTransferManager.PeerInfo p = currentConnectedPeer;
+                ApkUpdateManager.checkAndPullUpdate(MainActivity.this, lanTransferManager, p, null);
                 return true;
             }
             return false;
@@ -2776,6 +2784,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
         final Runnable[] renderPeerChipsHolder = new Runnable[1];
+
+        View btnLanCheckUpdate = dialogView.findViewById(R.id.btn_lan_check_update_peer);
+        if (btnLanCheckUpdate != null) {
+            btnLanCheckUpdate.setOnClickListener(v -> {
+                LanTransferManager.PeerInfo p = selectedPeer[0] != null ? selectedPeer[0] : currentConnectedPeer;
+                ApkUpdateManager.checkAndPullUpdate(MainActivity.this, lanTransferManager, p, null);
+            });
+        }
 
         View btnLanDisconnect = dialogView.findViewById(R.id.btn_lan_disconnect);
         if (btnLanDisconnect != null) {

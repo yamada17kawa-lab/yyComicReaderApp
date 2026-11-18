@@ -36,6 +36,7 @@ public class SettingsDialogManager {
             Activity activity,
             List<ComicItem> allComics,
             LanTransferManager lanTransferManager,
+            LanTransferManager.PeerInfo currentPeer,
             int currentSortMode,
             OnSettingsActionListener listener) {
         if (activity == null || activity.isFinishing()) return;
@@ -342,6 +343,18 @@ public class SettingsDialogManager {
                 String vName = ApkUpdateManager.getLocalVersionName(activity);
                 int vCode = ApkUpdateManager.getLocalVersionCode(activity);
                 tvVersionBadge.setText("v" + vName + " (Build " + vCode + ")");
+            }
+
+            MaterialButton btnCheckUpdate = dialogView.findViewById(R.id.btn_settings_check_update);
+            if (btnCheckUpdate != null) {
+                btnCheckUpdate.setOnClickListener(v -> {
+                    btnCheckUpdate.setEnabled(false);
+                    btnCheckUpdate.setText("⏳ 正在检查最新更新...");
+                    ApkUpdateManager.checkAndPullUpdate(activity, lanTransferManager, currentPeer, hasUpdate -> {
+                        btnCheckUpdate.setEnabled(true);
+                        btnCheckUpdate.setText("🚀 检查并拉取最新更新");
+                    });
+                });
             }
 
             dialog.show();

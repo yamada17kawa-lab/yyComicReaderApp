@@ -568,6 +568,28 @@
                             android:ellipsize="end" />
 
                         <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_lan_check_update_peer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:layout_marginStart="6dp"
+                            android:text="🚀 检查更新"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="false"
+                            android:backgroundTint="@color/primary"
+                            android:textColor="#FFFFFF"
+                            app:cornerRadius="8dp"
+                            app:elevation="0dp" />
+
+                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/btn_lan_disconnect"
                             android:layout_width="wrap_content"
                             android:layout_height="32dp"

@@ -866,6 +866,30 @@
                     android:text="YY漫画 · Android 原生版 · 局域网极速互传"
                     android:textColor="@color/text_muted"
                     android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_settings_check_update"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="12dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="🚀 检查并拉取最新更新"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:backgroundTint="@color/primary"
+                    android:textColor="#FFFFFF"
+                    app:icon="@drawable/ic_refresh_vector"
+                    app:iconSize="15dp"
+                    app:iconTint="#FFFFFF"
+                    app:iconGravity="textStart"
+                    app:cornerRadius="10dp"
+                    app:elevation="0dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
