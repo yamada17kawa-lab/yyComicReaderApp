@@ -33,7 +33,7 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:src="@drawable/ic_top_arrow_vector"
-            app:tint="@color/primary_light" />
+            app:tint="#818CF8" />
     </LinearLayout>
 
     <!-- 顶部悬浮 HUD 控制栏 -->
@@ -56,7 +56,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_arrow_back_vector"
             android:padding="9dp"
-            app:tint="@color/text_white"
+            app:tint="#F8FAFC"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
@@ -70,7 +70,7 @@
             android:layout_weight="1"
             android:layout_marginStart="6dp"
             android:layout_marginEnd="10dp"
-            android:textColor="@color/text_white"
+            android:textColor="#F8FAFC"
             android:textSize="15.5sp"
             android:textStyle="bold"
             android:singleLine="true"
@@ -86,7 +86,7 @@
             android:gravity="center"
             android:paddingStart="11dp"
             android:paddingEnd="11dp"
-            android:background="@drawable/btn_pill_surface"
+            android:background="@drawable/reader_pill_surface"
             android:clickable="true"
             android:focusable="true">
 
@@ -94,14 +94,14 @@
                 android:layout_width="14dp"
                 android:layout_height="14dp"
                 android:src="@drawable/ic_image_cover_vector"
-                app:tint="@color/primary_light" />
+                app:tint="#818CF8" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="5dp"
                 android:text="设封面"
-                android:textColor="@color/text_white"
+                android:textColor="#F8FAFC"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -115,7 +115,7 @@
             android:gravity="center"
             android:paddingStart="11dp"
             android:paddingEnd="11dp"
-            android:background="@drawable/btn_pill_surface"
+            android:background="@drawable/reader_pill_surface"
             android:clickable="true"
             android:focusable="true">
 
@@ -123,14 +123,14 @@
                 android:layout_width="14dp"
                 android:layout_height="14dp"
                 android:src="@drawable/ic_top_arrow_vector"
-                app:tint="@color/primary_light" />
+                app:tint="#818CF8" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="顶部"
-                android:textColor="@color/text_white"
+                android:textColor="#F8FAFC"
                 android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -171,11 +171,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="28dp"
                 android:gravity="center"
-                android:background="@drawable/btn_pill_surface"
+                android:background="@drawable/reader_pill_surface"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:text="1 / 1"
-                android:textColor="@color/text_white"
+                android:textColor="#F8FAFC"
                 android:textSize="12.5sp"
                 android:textStyle="bold" />
 
@@ -185,9 +185,9 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:progressTint="@color/primary"
+                android:progressTint="#6366F1"
                 android:progressBackgroundTint="#33FFFFFF"
-                android:thumbTint="@color/primary_light" />
+                android:thumbTint="#818CF8" />
 
         </LinearLayout>
 
@@ -206,10 +206,10 @@
                 android:layout_weight="1"
                 android:gravity="center"
                 android:text="‹ 上一部"
-                android:textColor="@color/text_white"
+                android:textColor="#F8FAFC"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                android:background="@drawable/btn_pill_surface"
+                android:background="@drawable/reader_pill_surface"
                 android:clickable="true"
                 android:focusable="true" />
 
@@ -222,7 +222,7 @@
                 android:layout_marginEnd="10dp"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:background="@drawable/btn_pill_surface"
+                android:background="@drawable/reader_pill_surface"
                 android:clickable="true"
                 android:focusable="true">
 
@@ -230,14 +230,14 @@
                     android:layout_width="15dp"
                     android:layout_height="15dp"
                     android:src="@drawable/ic_top_arrow_vector"
-                    app:tint="@color/primary_light" />
+                    app:tint="#818CF8" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
                     android:text="回到顶部"
-                    android:textColor="@color/primary_light"
+                    android:textColor="#818CF8"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -249,7 +249,7 @@
                 android:layout_weight="1"
                 android:gravity="center"
                 android:text="下一部 ›"
-                android:textColor="@color/text_white"
+                android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:background="@drawable/btn_pill_primary"
